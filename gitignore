@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+env/
+.env
+
+# Base de datos local
+*.db
+*.sqlite
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
