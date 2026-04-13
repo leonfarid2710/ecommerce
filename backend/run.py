@@ -388,6 +388,299 @@ def orders():
     return jsonify(orders=result)
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ADMIN PANEL
+# ─────────────────────────────────────────────────────────────────────────────
+from functools import wraps
+
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin1234')
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('is_admin'):
+            return redirect('/admin/login')
+        return f(*args, **kwargs)
+    return decorated
+
+
+ADMIN_NAV = """
+<nav style="background:#1a1917;border-bottom:1px solid #2a2825;padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between">
+  <span style="font-weight:800;font-size:1.1rem;color:#f0c14b">★ Star Up Admin</span>
+  <div style="display:flex;gap:.5rem">
+    <a href="/admin" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none;transition:all .15s" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Dashboard</a>
+    <a href="/admin/productos" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Productos</a>
+    <a href="/admin/usuarios" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Usuarios</a>
+    <a href="/admin/ventas" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Ventas</a>
+    <a href="/admin/logout" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;background:#3a3835;color:#faf8f4;text-decoration:none">Salir</a>
+  </div>
+</nav>
+"""
+
+ADMIN_CSS = """
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0f0e0d;color:#faf8f4;min-height:100vh}
+.container{max-width:1200px;margin:0 auto;padding:2rem 1.5rem}
+h1{font-size:1.4rem;font-weight:800;margin-bottom:.25rem}
+.sub{color:#7a7167;font-size:.85rem;margin-bottom:1.5rem}
+table{width:100%;border-collapse:collapse;background:#1a1917;border-radius:12px;overflow:hidden;font-size:.88rem}
+th{background:#2a2825;padding:.75rem 1rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#9a9088}
+td{padding:.75rem 1rem;border-bottom:1px solid #2a2825;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1f1e1c}
+input[type=number]{padding:.3rem .5rem;background:#0f0e0d;border:1px solid #3a3835;border-radius:6px;color:#faf8f4;font-size:.82rem}
+.save-btn{padding:.3rem .7rem;background:#d4541a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600}
+.save-btn:hover{background:#bf4a16}
+.msg{background:#1a3a2a;border:1px solid #2e7d5a;color:#6fcf97;padding:.65rem 1rem;border-radius:8px;margin-bottom:1.25rem;font-size:.88rem}
+</style>
+"""
+
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    error = ''
+    if request.method == 'POST':
+        if request.form.get('password') == ADMIN_PASSWORD:
+            session['is_admin'] = True
+            return redirect('/admin')
+        error = 'Contrasena incorrecta'
+    err_html = '<p style="color:#e74c3c;font-size:.82rem;margin-bottom:.75rem">' + error + '</p>' if error else ''
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Admin Login</title>'
+        '<style>*{box-sizing:border-box;margin:0;padding:0}'
+        'body{font-family:system-ui,sans-serif;background:#0f0e0d;display:flex;align-items:center;justify-content:center;min-height:100vh}'
+        '.box{background:#1a1917;border:1px solid #2a2825;border-radius:16px;padding:2.5rem;width:360px}'
+        'label{display:block;font-size:.8rem;color:#9a9088;margin-bottom:.4rem;font-weight:500}'
+        'input{width:100%;padding:.7rem 1rem;background:#0f0e0d;border:1px solid #2a2825;border-radius:8px;color:#faf8f4;font-size:.95rem;margin-bottom:1rem}'
+        'input:focus{outline:none;border-color:#d4541a}'
+        'button{width:100%;padding:.8rem;background:#d4541a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer}'
+        'button:hover{background:#bf4a16}</style></head><body>'
+        '<div class="box">'
+        '<div style="font-size:1.5rem;font-weight:800;color:#f0c14b;margin-bottom:.25rem">STAR UP</div>'
+        '<div style="font-size:.85rem;color:#7a7167;margin-bottom:2rem">Panel de administracion</div>'
+        + err_html +
+        '<form method="POST"><label>Contrasena de administrador</label>'
+        '<input type="password" name="password" placeholder="..." autofocus/>'
+        '<button type="submit">Entrar al panel</button></form>'
+        '</div></body></html>'
+    )
+
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('is_admin', None)
+    return redirect('/admin/login')
+
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    db = get_db()
+    total_users    = db.execute('SELECT COUNT(*) FROM clientes').fetchone()[0]
+    total_products = db.execute('SELECT COUNT(*) FROM productos WHERE activo=1').fetchone()[0]
+    total_ventas   = db.execute('SELECT COUNT(*) FROM ventas').fetchone()[0]
+    total_ingresos = db.execute('SELECT COALESCE(SUM(total),0) FROM ventas WHERE estado="pagado"').fetchone()[0]
+    oos_count      = db.execute('SELECT COUNT(*) FROM productos WHERE existencias=0 AND activo=1').fetchone()[0]
+    low_count      = db.execute('SELECT COUNT(*) FROM productos WHERE existencias>0 AND existencias<=5 AND activo=1').fetchone()[0]
+    db.close()
+
+    cards = [
+        ('👥', total_users,    'Usuarios registrados', '#2e7d5a'),
+        ('📦', total_products, 'Productos activos',    '#faf8f4'),
+        ('🛒', total_ventas,   'Ventas realizadas',    '#2e7d5a'),
+        ('💰', f'${total_ingresos:,.0f}', 'Ingresos MXN', '#2e7d5a'),
+        ('⚡', low_count,     'Stock bajo (<=5)',      '#f0c14b'),
+        ('❌', oos_count,     'Agotados',              '#e74c3c'),
+    ]
+    cards_html = ''
+    for icon, val, label, color in cards:
+        cards_html += (
+            '<div style="background:#1a1917;border:1px solid #2a2825;border-radius:12px;padding:1.25rem">'
+            f'<div style="font-size:1.5rem;margin-bottom:.5rem">{icon}</div>'
+            f'<div style="font-size:1.8rem;font-weight:800;color:{color}">{val}</div>'
+            f'<div style="font-size:.78rem;color:#7a7167;margin-top:.15rem">{label}</div>'
+            '</div>'
+        )
+
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Dashboard - Admin Star Up</title>'
+        '<style>*{box-sizing:border-box;margin:0;padding:0}'
+        'body{font-family:system-ui,sans-serif;background:#0f0e0d;color:#faf8f4;min-height:100vh}</style>'
+        '</head><body>' + ADMIN_NAV +
+        '<div style="max-width:1200px;margin:0 auto;padding:2rem 1.5rem">'
+        '<h1 style="font-size:1.4rem;font-weight:800;margin-bottom:.25rem">Dashboard</h1>'
+        '<p style="color:#7a7167;font-size:.85rem;margin-bottom:2rem">Resumen general de la tienda</p>'
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:2rem">'
+        + cards_html +
+        '</div>'
+        '<div style="display:flex;gap:.75rem;flex-wrap:wrap">'
+        '<a href="/admin/productos" style="padding:.5rem 1rem;background:#d4541a;color:#fff;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">📦 Gestionar productos</a>'
+        '<a href="/admin/usuarios" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">👥 Ver usuarios</a>'
+        '<a href="/admin/ventas" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">🛒 Ver ventas</a>'
+        '</div></div></body></html>'
+    )
+
+
+@app.route('/admin/productos')
+@admin_required
+def admin_productos():
+    db   = get_db()
+    rows = db.execute(
+        'SELECT p.*, pr.nombre AS proveedor_nombre FROM productos p '
+        'LEFT JOIN proveedores pr ON p.proveedor_id=pr.id '
+        'ORDER BY p.existencias ASC, p.nombre'
+    ).fetchall()
+    db.close()
+    msg = request.args.get('msg', '')
+
+    tbody = ''
+    for p in rows:
+        sc = '#e74c3c' if p['existencias']==0 else ('#f0c14b' if p['existencias']<=5 else '#2e7d5a')
+        tbody += (
+            '<tr>'
+            f'<td>{p["id"]}</td>'
+            f'<td><strong>{p["nombre"]}</strong><br><small style="color:#7a7167">{p["categoria"]}</small></td>'
+            f'<td>${p["precio"]:,.2f}</td>'
+            f'<td style="color:{sc};font-weight:700">{p["existencias"]}</td>'
+            f'<td>{"Activo" if p["activo"] else "Inactivo"}</td>'
+            '<td>'
+            f'<form method="POST" action="/admin/productos/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
+            f'<input type="hidden" name="id" value="{p["id"]}"/>'
+            f'<input type="number" name="precio" value="{p["precio"]}" step="0.01" min="0" style="width:90px"/>'
+            f'<input type="number" name="existencias" value="{p["existencias"]}" min="0" style="width:70px"/>'
+            '<button type="submit" class="save-btn">Guardar</button>'
+            '</form>'
+            '</td></tr>'
+        )
+
+    msg_html = f'<div class="msg">Producto actualizado correctamente</div>' if msg else ''
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Productos - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
+        '<div class="container"><h1>Gestion de Productos</h1>'
+        '<p class="sub">Edita precio y stock. Los cambios se aplican de inmediato.</p>'
+        + msg_html +
+        '<table><thead><tr>'
+        '<th>ID</th><th>Producto</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Editar</th>'
+        f'</tr></thead><tbody>{tbody}</tbody></table>'
+        '</div></body></html>'
+    )
+
+
+@app.route('/admin/productos/editar', methods=['POST'])
+@admin_required
+def admin_editar_producto():
+    pid         = int(request.form.get('id'))
+    precio      = float(request.form.get('precio', 0))
+    existencias = int(request.form.get('existencias', 0))
+    db = get_db()
+    db.execute('UPDATE productos SET precio=?, existencias=? WHERE id=?', (precio, existencias, pid))
+    db.commit()
+    db.close()
+    return redirect('/admin/productos?msg=1')
+
+
+@app.route('/admin/usuarios')
+@admin_required
+def admin_usuarios():
+    db   = get_db()
+    rows = db.execute(
+        'SELECT c.id, c.nombre, c.email, c.telefono, c.fecha_registro, '
+        'COUNT(v.id) AS total_compras, COALESCE(SUM(v.total),0) AS total_gastado '
+        'FROM clientes c LEFT JOIN ventas v ON v.cliente_id=c.id '
+        'GROUP BY c.id ORDER BY c.fecha_registro DESC'
+    ).fetchall()
+    db.close()
+
+    tbody = ''
+    for u in rows:
+        tbody += (
+            '<tr>'
+            f'<td>{u["id"]}</td>'
+            f'<td><strong>{u["nombre"]}</strong></td>'
+            f'<td>{u["email"]}</td>'
+            f'<td>{u["telefono"] or "-"}</td>'
+            f'<td style="color:#7a7167;font-size:.8rem">{u["fecha_registro"]}</td>'
+            f'<td style="color:#f0c14b;font-weight:700">{u["total_compras"]}</td>'
+            f'<td style="color:#2e7d5a;font-weight:700">${u["total_gastado"]:,.2f}</td>'
+            '</tr>'
+        )
+
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Usuarios - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
+        '<div class="container"><h1>Usuarios Registrados</h1>'
+        f'<p class="sub">{len(rows)} usuario{"s" if len(rows)!=1 else ""} en la plataforma</p>'
+        '<table><thead><tr>'
+        '<th>ID</th><th>Nombre</th><th>Email</th><th>Telefono</th>'
+        '<th>Registro</th><th>Compras</th><th>Total gastado</th>'
+        f'</tr></thead><tbody>{tbody}</tbody></table>'
+        '</div></body></html>'
+    )
+
+
+@app.route('/admin/ventas')
+@admin_required
+def admin_ventas():
+    db   = get_db()
+    ventas = db.execute(
+        'SELECT v.id, v.fecha, v.total, v.estado, v.metodo_pago, '
+        'c.nombre AS cliente_nombre, c.email AS cliente_email '
+        'FROM ventas v JOIN clientes c ON v.cliente_id=c.id '
+        'ORDER BY v.fecha DESC'
+    ).fetchall()
+
+    tbody = ''
+    total_ingresos = 0
+    for v in ventas:
+        detalles = db.execute(
+            'SELECT dv.cantidad, p.nombre FROM detalle_venta dv '
+            'JOIN productos p ON dv.producto_id=p.id WHERE dv.venta_id=?', (v['id'],)
+        ).fetchall()
+        items_str = ', '.join(f'{d["nombre"]} x{d["cantidad"]}' for d in detalles)
+        sc = '#2e7d5a' if v['estado']=='pagado' else '#e74c3c'
+        if v['estado'] == 'pagado':
+            total_ingresos += v['total']
+        tbody += (
+            '<tr>'
+            f'<td style="font-weight:700">#{v["id"]}</td>'
+            f'<td style="font-size:.8rem;color:#7a7167">{v["fecha"][:16]}</td>'
+            f'<td><strong>{v["cliente_nombre"]}</strong><br><small style="color:#7a7167">{v["cliente_email"]}</small></td>'
+            f'<td style="font-size:.82rem;color:#9a9088;max-width:260px">{items_str}</td>'
+            f'<td style="font-weight:700;color:#f0c14b">${v["total"]:,.2f}</td>'
+            f'<td style="color:{sc};font-weight:600">{v["estado"].upper()}</td>'
+            f'<td style="font-size:.82rem">{v["metodo_pago"]}</td>'
+            '</tr>'
+        )
+    db.close()
+
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Ventas - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
+        '<div class="container"><h1>Historial de Ventas</h1>'
+        f'<p class="sub">{len(ventas)} venta{"s" if len(ventas)!=1 else ""} registradas</p>'
+        f'<div style="background:#1a3a2a;border:1px solid #2e7d5a;border-radius:10px;padding:.9rem 1.25rem;margin-bottom:1.5rem;display:inline-block">'
+        f'<span style="font-size:.82rem;color:#7a7167">Ingresos totales: </span>'
+        f'<strong style="font-size:1.2rem;color:#6fcf97;font-weight:800">${total_ingresos:,.2f} MXN</strong></div>'
+        '<table><thead><tr>'
+        '<th>Pedido</th><th>Fecha</th><th>Cliente</th>'
+        '<th>Productos</th><th>Total</th><th>Estado</th><th>Pago</th>'
+        f'</tr></thead><tbody>{tbody}</tbody></table>'
+        '</div></body></html>'
+    )
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  FRONTEND
 # ─────────────────────────────────────────────────────────────────────────────
