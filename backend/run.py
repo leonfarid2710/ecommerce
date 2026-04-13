@@ -9,7 +9,7 @@ import sys
 import sqlite3
 import hashlib
 import re
-from flask import Flask, request, jsonify, session, send_from_directory, Response
+from flask import Flask, request, jsonify, session, send_from_directory, Response, redirect
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  RUTAS DE ARCHIVOS
