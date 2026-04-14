@@ -396,6 +396,64 @@ from functools import wraps
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin1234')
 
+# ── Shared layout pieces ─────────────────────────────────────────────────────
+def _page(title, body, active=''):
+    nav_items = [
+        ('Dashboard',    '/admin',            'dashboard'),
+        ('Productos',    '/admin/productos',  'productos'),
+        ('Usuarios',     '/admin/usuarios',   'usuarios'),
+        ('Proveedores',  '/admin/proveedores','proveedores'),
+        ('Ventas',       '/admin/ventas',     'ventas'),
+    ]
+    nav_html = ''
+    for label, href, key in nav_items:
+        style = 'background:#d4541a;color:#fff' if key == active else 'color:#9a9088'
+        nav_html += f'<a href="{href}" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;text-decoration:none;{style}">{label}</a>'
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<title>{title} — Star Up Admin</title>'
+        '<style>'
+        '*{box-sizing:border-box;margin:0;padding:0}'
+        'body{font-family:system-ui,sans-serif;background:#0f0e0d;color:#faf8f4;min-height:100vh}'
+        '.container{max-width:1280px;margin:0 auto;padding:2rem 1.5rem}'
+        'h1{font-size:1.5rem;font-weight:800;margin-bottom:.2rem}'
+        '.sub{color:#7a7167;font-size:.85rem;margin-bottom:1.75rem}'
+        'table{width:100%;border-collapse:collapse;background:#1a1917;border-radius:14px;overflow:hidden;font-size:.88rem}'
+        'th{background:#252320;padding:.8rem 1rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:#6a6560;font-weight:600}'
+        'td{padding:.8rem 1rem;border-bottom:1px solid #252320;vertical-align:middle}'
+        'tr:last-child td{border-bottom:none}'
+        'tr:hover>td{background:#1f1e1b}'
+        'input[type=text],input[type=email],input[type=number],input[type=tel]{padding:.35rem .6rem;background:#0f0e0d;border:1px solid #3a3835;border-radius:7px;color:#faf8f4;font-size:.82rem;font-family:inherit}'
+        'input:focus{outline:none;border-color:#d4541a}'
+        '.btn-save{padding:.35rem .8rem;background:#d4541a;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.8rem;font-weight:600}'
+        '.btn-save:hover{background:#bf4a16}'
+        '.btn-del{padding:.35rem .8rem;background:#3a1a1a;color:#e74c3c;border:1px solid #5a2a2a;border-radius:7px;cursor:pointer;font-size:.8rem;font-weight:600}'
+        '.btn-del:hover{background:#c0392b;color:#fff;border-color:#c0392b}'
+        '.btn-add{padding:.5rem 1rem;background:#1a3a2a;color:#6fcf97;border:1px solid #2a5a3a;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem}'
+        '.btn-add:hover{background:#2a5a3a}'
+        '.msg-ok{background:#1a3a2a;border:1px solid #2e7d5a;color:#6fcf97;padding:.65rem 1.1rem;border-radius:9px;margin-bottom:1.25rem;font-size:.88rem}'
+        '.msg-err{background:#3a1a1a;border:1px solid #7d2e2e;color:#f97;padding:.65rem 1.1rem;border-radius:9px;margin-bottom:1.25rem;font-size:.88rem}'
+        '.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1rem;margin-bottom:2rem}'
+        '.stat{background:#1a1917;border:1px solid #2a2825;border-radius:14px;padding:1.25rem}'
+        '.stat-icon{font-size:1.4rem;margin-bottom:.5rem}'
+        '.stat-val{font-size:1.75rem;font-weight:800;line-height:1}'
+        '.stat-lbl{font-size:.75rem;color:#7a7167;margin-top:.3rem}'
+        '.add-form{background:#1a1917;border:1px solid #2a2825;border-radius:14px;padding:1.5rem;margin-bottom:1.75rem}'
+        '.add-form h3{font-size:1rem;font-weight:700;margin-bottom:1rem;color:#faf8f4}'
+        '.form-row{display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end}'
+        '.form-field{display:flex;flex-direction:column;gap:.3rem}'
+        '.form-field label{font-size:.75rem;color:#9a9088;font-weight:500}'
+        '.form-field input{padding:.55rem .8rem;font-size:.9rem}'
+        '</style></head><body>'
+        f'<nav style="background:#1a1917;border-bottom:1px solid #252320;padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between">'
+        '<span style="font-weight:800;font-size:1.1rem;color:#f0c14b">★ Star Up Admin</span>'
+        f'<div style="display:flex;gap:.4rem">{nav_html}'
+        '<a href="/admin/logout" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;text-decoration:none;background:#2a2825;color:#9a9088;margin-left:.5rem">Salir</a>'
+        '</div></nav>'
+        f'<div class="container">{body}</div></body></html>'
+    )
+
 
 def admin_required(f):
     @wraps(f)
@@ -406,40 +464,7 @@ def admin_required(f):
     return decorated
 
 
-ADMIN_NAV = """
-<nav style="background:#1a1917;border-bottom:1px solid #2a2825;padding:.9rem 1.5rem;display:flex;align-items:center;justify-content:space-between">
-  <span style="font-weight:800;font-size:1.1rem;color:#f0c14b">★ Star Up Admin</span>
-  <div style="display:flex;gap:.5rem">
-    <a href="/admin" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none;transition:all .15s" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Dashboard</a>
-    <a href="/admin/productos" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Productos</a>
-    <a href="/admin/usuarios" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Usuarios</a>
-    <a href="/admin/proveedores" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Proveedores</a>
-    <a href="/admin/ventas" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Ventas</a>
-    <a href="/admin/logout" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;background:#3a3835;color:#faf8f4;text-decoration:none">Salir</a>
-  </div>
-</nav>
-"""
-
-ADMIN_CSS = """
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#0f0e0d;color:#faf8f4;min-height:100vh}
-.container{max-width:1200px;margin:0 auto;padding:2rem 1.5rem}
-h1{font-size:1.4rem;font-weight:800;margin-bottom:.25rem}
-.sub{color:#7a7167;font-size:.85rem;margin-bottom:1.5rem}
-table{width:100%;border-collapse:collapse;background:#1a1917;border-radius:12px;overflow:hidden;font-size:.88rem}
-th{background:#2a2825;padding:.75rem 1rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#9a9088}
-td{padding:.75rem 1rem;border-bottom:1px solid #2a2825;vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:#1f1e1c}
-input[type=number]{padding:.3rem .5rem;background:#0f0e0d;border:1px solid #3a3835;border-radius:6px;color:#faf8f4;font-size:.82rem}
-.save-btn{padding:.3rem .7rem;background:#d4541a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600}
-.save-btn:hover{background:#bf4a16}
-.msg{background:#1a3a2a;border:1px solid #2e7d5a;color:#6fcf97;padding:.65rem 1rem;border-radius:8px;margin-bottom:1.25rem;font-size:.88rem}
-</style>
-"""
-
-
+# ── Login ────────────────────────────────────────────────────────────────────
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     error = ''
@@ -447,27 +472,26 @@ def admin_login():
         if request.form.get('password') == ADMIN_PASSWORD:
             session['is_admin'] = True
             return redirect('/admin')
-        error = 'Contrasena incorrecta'
-    err_html = '<p style="color:#e74c3c;font-size:.82rem;margin-bottom:.75rem">' + error + '</p>' if error else ''
+        error = 'Contraseña incorrecta'
+    err = f'<p style="color:#e74c3c;font-size:.83rem;margin-bottom:.75rem">{error}</p>' if error else ''
     return (
         '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Admin Login</title>'
-        '<style>*{box-sizing:border-box;margin:0;padding:0}'
-        'body{font-family:system-ui,sans-serif;background:#0f0e0d;display:flex;align-items:center;justify-content:center;min-height:100vh}'
-        '.box{background:#1a1917;border:1px solid #2a2825;border-radius:16px;padding:2.5rem;width:360px}'
-        'label{display:block;font-size:.8rem;color:#9a9088;margin-bottom:.4rem;font-weight:500}'
-        'input{width:100%;padding:.7rem 1rem;background:#0f0e0d;border:1px solid #2a2825;border-radius:8px;color:#faf8f4;font-size:.95rem;margin-bottom:1rem}'
+        '<title>Admin Login — Star Up</title>'
+        '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#0f0e0d;display:flex;align-items:center;justify-content:center;min-height:100vh}'
+        '.box{background:#1a1917;border:1px solid #2a2825;border-radius:18px;padding:2.5rem;width:360px}'
+        'label{display:block;font-size:.78rem;color:#9a9088;margin-bottom:.4rem;font-weight:500}'
+        'input{width:100%;padding:.75rem 1rem;background:#0f0e0d;border:1px solid #2a2825;border-radius:9px;color:#faf8f4;font-size:.95rem;margin-bottom:1rem;font-family:inherit}'
         'input:focus{outline:none;border-color:#d4541a}'
-        'button{width:100%;padding:.8rem;background:#d4541a;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:pointer}'
+        'button{width:100%;padding:.85rem;background:#d4541a;color:#fff;border:none;border-radius:9px;font-weight:700;font-size:1rem;cursor:pointer;font-family:inherit}'
         'button:hover{background:#bf4a16}</style></head><body>'
         '<div class="box">'
-        '<div style="font-size:1.5rem;font-weight:800;color:#f0c14b;margin-bottom:.25rem">STAR UP</div>'
-        '<div style="font-size:.85rem;color:#7a7167;margin-bottom:2rem">Panel de administracion</div>'
-        + err_html +
-        '<form method="POST"><label>Contrasena de administrador</label>'
-        '<input type="password" name="password" placeholder="..." autofocus/>'
-        '<button type="submit">Entrar al panel</button></form>'
+        '<div style="font-size:1.4rem;font-weight:800;color:#f0c14b;margin-bottom:.2rem">★ Star Up</div>'
+        '<div style="font-size:.85rem;color:#7a7167;margin-bottom:2rem">Panel de administración</div>'
+        + err +
+        '<form method="POST"><label>Contraseña</label>'
+        '<input type="password" name="password" placeholder="••••••••" autofocus/>'
+        '<button>Entrar al panel</button></form>'
         '</div></body></html>'
     )
 
@@ -478,239 +502,170 @@ def admin_logout():
     return redirect('/admin/login')
 
 
+# ── Dashboard ────────────────────────────────────────────────────────────────
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
     db = get_db()
-    total_users    = db.execute('SELECT COUNT(*) FROM clientes').fetchone()[0]
-    total_products = db.execute('SELECT COUNT(*) FROM productos WHERE activo=1').fetchone()[0]
-    total_ventas   = db.execute('SELECT COUNT(*) FROM ventas').fetchone()[0]
-    total_ingresos = db.execute('SELECT COALESCE(SUM(total),0) FROM ventas WHERE estado="pagado"').fetchone()[0]
-    oos_count      = db.execute('SELECT COUNT(*) FROM productos WHERE existencias=0 AND activo=1').fetchone()[0]
-    low_count      = db.execute('SELECT COUNT(*) FROM productos WHERE existencias>0 AND existencias<=5 AND activo=1').fetchone()[0]
+    tu = db.execute('SELECT COUNT(*) FROM clientes').fetchone()[0]
+    tp = db.execute('SELECT COUNT(*) FROM productos WHERE activo=1').fetchone()[0]
+    tv = db.execute('SELECT COUNT(*) FROM ventas').fetchone()[0]
+    ti = db.execute('SELECT COALESCE(SUM(total),0) FROM ventas WHERE estado="pagado"').fetchone()[0]
+    oo = db.execute('SELECT COUNT(*) FROM productos WHERE existencias=0 AND activo=1').fetchone()[0]
+    lo = db.execute('SELECT COUNT(*) FROM productos WHERE existencias>0 AND existencias<=5 AND activo=1').fetchone()[0]
     db.close()
-
-    cards = [
-        ('👥', total_users,    'Usuarios registrados', '#2e7d5a'),
-        ('📦', total_products, 'Productos activos',    '#faf8f4'),
-        ('🛒', total_ventas,   'Ventas realizadas',    '#2e7d5a'),
-        ('💰', f'${total_ingresos:,.0f}', 'Ingresos MXN', '#2e7d5a'),
-        ('⚡', low_count,     'Stock bajo (<=5)',      '#f0c14b'),
-        ('❌', oos_count,     'Agotados',              '#e74c3c'),
+    stats = [
+        ('👥', tu,            'Usuarios',         '#6fcf97'),
+        ('📦', tp,            'Productos activos', '#faf8f4'),
+        ('🛒', tv,            'Ventas',            '#6fcf97'),
+        ('💰', f'${ti:,.0f}', 'Ingresos MXN',     '#6fcf97'),
+        ('⚡', lo,           'Stock bajo',        '#f0c14b'),
+        ('❌', oo,           'Agotados',          '#e74c3c'),
     ]
-    cards_html = ''
-    for icon, val, label, color in cards:
-        cards_html += (
-            '<div style="background:#1a1917;border:1px solid #2a2825;border-radius:12px;padding:1.25rem">'
-            f'<div style="font-size:1.5rem;margin-bottom:.5rem">{icon}</div>'
-            f'<div style="font-size:1.8rem;font-weight:800;color:{color}">{val}</div>'
-            f'<div style="font-size:.78rem;color:#7a7167;margin-top:.15rem">{label}</div>'
-            '</div>'
-        )
-
-    return (
-        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Dashboard - Admin Star Up</title>'
-        '<style>*{box-sizing:border-box;margin:0;padding:0}'
-        'body{font-family:system-ui,sans-serif;background:#0f0e0d;color:#faf8f4;min-height:100vh}</style>'
-        '</head><body>' + ADMIN_NAV +
-        '<div style="max-width:1200px;margin:0 auto;padding:2rem 1.5rem">'
-        '<h1 style="font-size:1.4rem;font-weight:800;margin-bottom:.25rem">Dashboard</h1>'
-        '<p style="color:#7a7167;font-size:.85rem;margin-bottom:2rem">Resumen general de la tienda</p>'
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:2rem">'
-        + cards_html +
-        '</div>'
-        '<div style="display:flex;gap:.75rem;flex-wrap:wrap">'
-        '<a href="/admin/productos" style="padding:.5rem 1rem;background:#d4541a;color:#fff;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">📦 Gestionar productos</a>'
-        '<a href="/admin/usuarios" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">👥 Ver usuarios</a>'
-        '<a href="/admin/ventas" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">🛒 Ver ventas</a>'
-        '<a href="/admin/proveedores" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">🏭 Proveedores</a>'
-        '</div></div></body></html>'
+    cards = ''.join(
+        f'<div class="stat"><div class="stat-icon">{i}</div>'
+        f'<div class="stat-val" style="color:{c}">{v}</div>'
+        f'<div class="stat-lbl">{l}</div></div>'
+        for i,v,l,c in stats
     )
+    links = (
+        '<div style="display:flex;gap:.75rem;flex-wrap:wrap">'
+        '<a href="/admin/productos" style="padding:.55rem 1.1rem;background:#d4541a;color:#fff;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">📦 Productos</a>'
+        '<a href="/admin/usuarios" style="padding:.55rem 1.1rem;background:#2a2825;color:#faf8f4;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">👥 Usuarios</a>'
+        '<a href="/admin/proveedores" style="padding:.55rem 1.1rem;background:#2a2825;color:#faf8f4;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">🏭 Proveedores</a>'
+        '<a href="/admin/ventas" style="padding:.55rem 1.1rem;background:#2a2825;color:#faf8f4;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">🛒 Ventas</a>'
+        '</div>'
+    )
+    body = (
+        '<h1>Dashboard</h1><p class="sub">Resumen general de la tienda</p>'
+        f'<div class="stat-grid">{cards}</div>{links}'
+    )
+    return _page('Dashboard', body, 'dashboard')
 
 
+# ── Productos ────────────────────────────────────────────────────────────────
 @app.route('/admin/productos')
 @admin_required
 def admin_productos():
     db   = get_db()
     rows = db.execute(
-        'SELECT p.*, pr.nombre AS proveedor_nombre FROM productos p '
+        'SELECT p.*, pr.nombre AS prov FROM productos p '
         'LEFT JOIN proveedores pr ON p.proveedor_id=pr.id '
         'ORDER BY p.existencias ASC, p.nombre'
     ).fetchall()
     db.close()
-    msg = request.args.get('msg', '')
+    msg = request.args.get('msg','')
 
     tbody = ''
     for p in rows:
-        sc = '#e74c3c' if p['existencias']==0 else ('#f0c14b' if p['existencias']<=5 else '#2e7d5a')
+        sc = '#e74c3c' if p['existencias']==0 else ('#f0c14b' if p['existencias']<=5 else '#6fcf97')
         tbody += (
             '<tr>'
-            f'<td>{p["id"]}</td>'
-            f'<td><strong>{p["nombre"]}</strong><br><small style="color:#7a7167">{p["categoria"]}</small></td>'
-            f'<td>${p["precio"]:,.2f}</td>'
-            f'<td style="color:{sc};font-weight:700">{p["existencias"]}</td>'
-            f'<td>{"Activo" if p["activo"] else "Inactivo"}</td>'
+            '<td style="color:#6a6560">' + str(p['id']) + '</td>'
+            '<td><strong style="font-size:.9rem">' + p['nombre'] + '</strong><br>'
+            '<small style="color:#7a7167">' + p['categoria'] + ((' · ' + p['prov']) if p['prov'] else '') + '</small></td>'
+            '<td style="color:' + sc + ';font-weight:700">' + str(p['existencias']) + '</td>'
+            '<td style="font-weight:600">$' + f'{p["precio"]:,.2f}' + '</td>'
+            '<td>' + ('✅ Activo' if p['activo'] else '⏸ Inactivo') + '</td>'
             '<td>'
-            f'<form method="POST" action="/admin/productos/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
-            f'<input type="hidden" name="id" value="{p["id"]}"/>'
-            f'<input type="number" name="precio" value="{p["precio"]}" step="0.01" min="0" style="width:90px"/>'
-            f'<input type="number" name="existencias" value="{p["existencias"]}" min="0" style="width:70px"/>'
-            '<button type="submit" class="save-btn">Guardar</button>'
+            '<form method="POST" action="/admin/productos/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
+            '<input type="hidden" name="id" value="' + str(p['id']) + '"/>'
+            '<input type="number" name="precio" value="' + str(p['precio']) + '" step="0.01" min="0" style="width:88px" title="Nuevo precio"/>'
+            '<input type="number" name="existencias" value="' + str(p['existencias']) + '" min="0" style="width:68px" title="Stock"/>'
+            '<button type="submit" class="btn-save">Guardar</button>'
             '</form>'
             '</td></tr>'
         )
 
-    msg_html = f'<div class="msg">Producto actualizado correctamente</div>' if msg else ''
-    return (
-        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Productos - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
-        '<div class="container"><h1>Gestion de Productos</h1>'
-        '<p class="sub">Edita precio y stock. Los cambios se aplican de inmediato.</p>'
+    msg_html = '<div class="msg-ok">✅ Producto actualizado correctamente</div>' if msg else ''
+    body = (
+        '<h1>Productos</h1><p class="sub">Edita precio y stock. Los cambios se aplican de inmediato.</p>'
         + msg_html +
         '<table><thead><tr>'
-        '<th>ID</th><th>Producto</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Editar</th>'
-        f'</tr></thead><tbody>{tbody}</tbody></table>'
-        '</div></body></html>'
+        '<th>ID</th><th>Producto</th><th>Stock</th><th>Precio</th><th>Estado</th><th>Editar precio / stock</th>'
+        '</tr></thead><tbody>' + tbody + '</tbody></table>'
     )
+    return _page('Productos', body, 'productos')
 
 
 @app.route('/admin/productos/editar', methods=['POST'])
 @admin_required
 def admin_editar_producto():
-    pid         = int(request.form.get('id'))
-    precio      = float(request.form.get('precio', 0))
+    pid  = int(request.form.get('id'))
+    precio = float(request.form.get('precio', 0))
     existencias = int(request.form.get('existencias', 0))
     db = get_db()
     db.execute('UPDATE productos SET precio=?, existencias=? WHERE id=?', (precio, existencias, pid))
-    db.commit()
-    db.close()
+    db.commit(); db.close()
     return redirect('/admin/productos?msg=1')
 
 
+# ── Usuarios ─────────────────────────────────────────────────────────────────
 @app.route('/admin/usuarios')
 @admin_required
 def admin_usuarios():
     db   = get_db()
     rows = db.execute(
         'SELECT c.id, c.nombre, c.email, c.telefono, c.fecha_registro, '
-        'COUNT(v.id) AS total_compras, COALESCE(SUM(v.total),0) AS total_gastado '
+        'COUNT(v.id) AS compras, COALESCE(SUM(v.total),0) AS gastado '
         'FROM clientes c LEFT JOIN ventas v ON v.cliente_id=c.id '
         'GROUP BY c.id ORDER BY c.fecha_registro DESC'
     ).fetchall()
     db.close()
+    msg  = request.args.get('msg','')
+    tipo = request.args.get('tipo','')
 
-    msg = request.args.get('msg','')
     tbody = ''
     for u in rows:
-        confirm_msg = 'Eliminar a ' + u['nombre'] + '? Esta accion no se puede deshacer.'
+        confirm_txt = 'Eliminar a ' + u['nombre'] + '? Esta accion no se puede deshacer.'
         tbody += (
             '<tr>'
-            '<td style="color:#7a7167">' + str(u['id']) + '</td>'
-            '<td style="font-size:.8rem;color:#7a7167">' + str(u['fecha_registro'])[:10] + '</td>'
-            '<td style="color:#f0c14b;font-weight:700">' + str(u['total_compras']) + '</td>'
-            '<td style="color:#2e7d5a;font-weight:700">$' + f'{u["total_gastado"]:,.2f}' + '</td>'
+            '<td style="color:#6a6560">' + str(u['id']) + '</td>'
+            '<td style="font-size:.78rem;color:#7a7167">' + str(u['fecha_registro'])[:10] + '</td>'
+            '<td style="color:#f0c14b;font-weight:700">' + str(u['compras']) + '</td>'
+            '<td style="color:#6fcf97;font-weight:700">$' + f'{u["gastado"]:,.2f}' + '</td>'
             '<td>'
-            '<form method="POST" action="/admin/usuarios/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem">'
+            '<form method="POST" action="/admin/usuarios/editar" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem;align-items:center">'
             '<input type="hidden" name="id" value="' + str(u['id']) + '"/>'
-            '<input type="text" name="nombre" value="' + u['nombre'] + '" style="width:130px"/>'
-            '<input type="email" name="email" value="' + u['email'] + '" style="width:160px"/>'
-            '<input type="text" name="telefono" value="' + (u['telefono'] or '') + '" placeholder="Tel" style="width:110px"/>'
-            '<button type="submit" class="save-btn">Guardar</button>'
-            '</form><br>'
-            '<form method="POST" action="/admin/usuarios/eliminar" style="display:inline" onsubmit="return confirm('' + confirm_msg + '')">'
-            '<input type="hidden" name="id" value="' + str(u['id']) + '"/>'
-            '<button type="submit" style="padding:.3rem .7rem;background:#c0392b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600">Eliminar usuario</button>'
+            '<input type="text" name="nombre" value="' + u['nombre'] + '" style="width:130px" title="Nombre"/>'
+            '<input type="email" name="email" value="' + u['email'] + '" style="width:165px" title="Email"/>'
+            '<input type="tel" name="telefono" value="' + (u['telefono'] or '') + '" placeholder="Teléfono" style="width:110px"/>'
+            '<button type="submit" class="btn-save">Guardar</button>'
             '</form>'
-            '</td>'
-            '</tr>'
+            '<form method="POST" action="/admin/usuarios/eliminar" onsubmit="return confirm(\'' + confirm_txt + '\')"  style="display:inline">'
+            '<input type="hidden" name="id" value="' + str(u['id']) + '"/>'
+            '<button type="submit" class="btn-del">🗑 Eliminar usuario</button>'
+            '</form>'
+            '</td></tr>'
         )
 
-    msg_html = '<div class="msg">' + msg.replace('+',' ') + '</div>' if msg else ''
-    return (
-        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Usuarios - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
-        '<div class="container"><h1>Usuarios Registrados</h1>'
-        '<p class="sub">' + str(len(rows)) + ' usuario' + ('s' if len(rows)!=1 else '') + ' en la plataforma</p>'
+    msg_html = ''
+    if msg:
+        ok = tipo != 'del'
+        msg_html = '<div class="msg-' + ('ok' if ok else 'ok') + '">' + ('✅ ' if ok else '🗑 ') + msg.replace('+',' ') + '</div>'
+
+    body = (
+        '<h1>Usuarios</h1>'
+        '<p class="sub">' + str(len(rows)) + ' usuario' + ('s' if len(rows)!=1 else '') + ' registrados en la plataforma</p>'
         + msg_html +
         '<table><thead><tr>'
-        '<th>ID</th><th>Registro</th><th>Compras</th><th>Gastado</th><th>Editar / Eliminar</th>'
+        '<th>ID</th><th>Registro</th><th>Compras</th><th>Total gastado</th><th>Editar / Eliminar</th>'
         '</tr></thead><tbody>' + tbody + '</tbody></table>'
-        '</div></body></html>'
     )
-
-
-@app.route('/admin/ventas')
-@admin_required
-def admin_ventas():
-    db   = get_db()
-    ventas = db.execute(
-        'SELECT v.id, v.fecha, v.total, v.estado, v.metodo_pago, '
-        'c.nombre AS cliente_nombre, c.email AS cliente_email '
-        'FROM ventas v JOIN clientes c ON v.cliente_id=c.id '
-        'ORDER BY v.fecha DESC'
-    ).fetchall()
-
-    tbody = ''
-    total_ingresos = 0
-    for v in ventas:
-        detalles = db.execute(
-            'SELECT dv.cantidad, p.nombre FROM detalle_venta dv '
-            'JOIN productos p ON dv.producto_id=p.id WHERE dv.venta_id=?', (v['id'],)
-        ).fetchall()
-        items_str = ', '.join(f'{d["nombre"]} x{d["cantidad"]}' for d in detalles)
-        sc = '#2e7d5a' if v['estado']=='pagado' else '#e74c3c'
-        if v['estado'] == 'pagado':
-            total_ingresos += v['total']
-        tbody += (
-            '<tr>'
-            f'<td style="font-weight:700">#{v["id"]}</td>'
-            f'<td style="font-size:.8rem;color:#7a7167">{v["fecha"][:16]}</td>'
-            f'<td><strong>{v["cliente_nombre"]}</strong><br><small style="color:#7a7167">{v["cliente_email"]}</small></td>'
-            f'<td style="font-size:.82rem;color:#9a9088;max-width:260px">{items_str}</td>'
-            f'<td style="font-weight:700;color:#f0c14b">${v["total"]:,.2f}</td>'
-            f'<td style="color:{sc};font-weight:600">{v["estado"].upper()}</td>'
-            f'<td style="font-size:.82rem">{v["metodo_pago"]}</td>'
-            '</tr>'
-        )
-    db.close()
-
-    return (
-        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Ventas - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
-        '<div class="container"><h1>Historial de Ventas</h1>'
-        f'<p class="sub">{len(ventas)} venta{"s" if len(ventas)!=1 else ""} registradas</p>'
-        f'<div style="background:#1a3a2a;border:1px solid #2e7d5a;border-radius:10px;padding:.9rem 1.25rem;margin-bottom:1.5rem;display:inline-block">'
-        f'<span style="font-size:.82rem;color:#7a7167">Ingresos totales: </span>'
-        f'<strong style="font-size:1.2rem;color:#6fcf97;font-weight:800">${total_ingresos:,.2f} MXN</strong></div>'
-        '<table><thead><tr>'
-        '<th>Pedido</th><th>Fecha</th><th>Cliente</th>'
-        '<th>Productos</th><th>Total</th><th>Estado</th><th>Pago</th>'
-        f'</tr></thead><tbody>{tbody}</tbody></table>'
-        '</div></body></html>'
-    )
-
-
-
+    return _page('Usuarios', body, 'usuarios')
 
 
 @app.route('/admin/usuarios/editar', methods=['POST'])
 @admin_required
 def admin_editar_usuario():
-    uid      = int(request.form.get('id'))
-    nombre   = request.form.get('nombre','').strip()
-    email    = request.form.get('email','').strip().lower()
-    telefono = request.form.get('telefono','').strip()
-    db = get_db()
-    db.execute('UPDATE clientes SET nombre=?, email=?, telefono=? WHERE id=?',
-               (nombre, email, telefono or None, uid))
-    db.commit()
-    db.close()
-    return redirect('/admin/usuarios?msg=Usuario+actualizado')
+    uid  = int(request.form.get('id'))
+    nom  = request.form.get('nombre','').strip()
+    eml  = request.form.get('email','').strip().lower()
+    tel  = request.form.get('telefono','').strip()
+    db   = get_db()
+    db.execute('UPDATE clientes SET nombre=?, email=?, telefono=? WHERE id=?', (nom, eml, tel or None, uid))
+    db.commit(); db.close()
+    return redirect('/admin/usuarios?msg=Usuario+actualizado+correctamente')
 
 
 @app.route('/admin/usuarios/eliminar', methods=['POST'])
@@ -721,11 +676,11 @@ def admin_eliminar_usuario():
     db.execute('DELETE FROM items_carrito WHERE carrito_id IN (SELECT id FROM carrito WHERE cliente_id=?)', (uid,))
     db.execute('DELETE FROM carrito WHERE cliente_id=?', (uid,))
     db.execute('DELETE FROM clientes WHERE id=?', (uid,))
-    db.commit()
-    db.close()
-    return redirect('/admin/usuarios?msg=Usuario+eliminado')
+    db.commit(); db.close()
+    return redirect('/admin/usuarios?msg=Usuario+eliminado&tipo=del')
 
 
+# ── Proveedores ───────────────────────────────────────────────────────────────
 @app.route('/admin/proveedores')
 @admin_required
 def admin_proveedores():
@@ -738,46 +693,70 @@ def admin_proveedores():
     db.close()
     msg = request.args.get('msg','')
 
+    add_form = (
+        '<div class="add-form">'
+        '<h3>➕ Agregar nuevo proveedor</h3>'
+        '<form method="POST" action="/admin/proveedores/agregar">'
+        '<div class="form-row">'
+        '<div class="form-field"><label>Nombre *</label><input type="text" name="nombre" placeholder="Nombre del proveedor" required style="width:180px"/></div>'
+        '<div class="form-field"><label>Contacto</label><input type="text" name="contacto" placeholder="Nombre del contacto" style="width:160px"/></div>'
+        '<div class="form-field"><label>Email</label><input type="email" name="email" placeholder="correo@proveedor.com" style="width:180px"/></div>'
+        '<div class="form-field"><label>Teléfono</label><input type="tel" name="telefono" placeholder="981 234 5678" style="width:140px"/></div>'
+        '<div class="form-field"><label>&nbsp;</label><button type="submit" class="btn-save" style="padding:.55rem 1.1rem;font-size:.88rem">Agregar</button></div>'
+        '</div></form></div>'
+    )
+
     tbody = ''
     for p in rows:
+        confirm_txt = 'Eliminar al proveedor ' + p['nombre'] + '? Sus productos quedaran sin proveedor asignado.'
         tbody += (
             '<tr>'
-            f'<td>{p["id"]}</td>'
-            f'<td><strong>{p["nombre"]}</strong></td>'
-            f'<td>{p["contacto"] or "-"}</td>'
-            f'<td>{p["email"] or "-"}</td>'
-            f'<td>{p["telefono"] or "-"}</td>'
-            f'<td style="color:#f0c14b;font-weight:700">{p["total_productos"]}</td>'
-            '<td>'
-            f'<form method="POST" action="/admin/proveedores/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
-            f'<input type="hidden" name="id" value="{p["id"]}"/>'
-            f'<input type="text" name="nombre" value="{p["nombre"]}" style="width:130px"/>'
-            f'<input type="text" name="contacto" value="{p["contacto"] or ""}" placeholder="Contacto" style="width:110px"/>'
-            f'<input type="text" name="email" value="{p["email"] or ""}" placeholder="Email" style="width:140px"/>'
-            f'<input type="text" name="telefono" value="{p["telefono"] or ""}" placeholder="Tel" style="width:110px"/>'
-            '<button type="submit" class="save-btn">Guardar</button>'
+            '<td style="color:#6a6560">' + str(p['id']) + '</td>'
+            '<td style="color:#f0c14b;font-weight:700;text-align:center">' + str(p['total_productos']) + '</td>'
+            '<td colspan="4">'
+            '<form method="POST" action="/admin/proveedores/editar" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center">'
+            '<input type="hidden" name="id" value="' + str(p['id']) + '"/>'
+            '<input type="text" name="nombre" value="' + p['nombre'] + '" style="width:150px" title="Nombre"/>'
+            '<input type="text" name="contacto" value="' + (p['contacto'] or '') + '" placeholder="Contacto" style="width:130px"/>'
+            '<input type="email" name="email" value="' + (p['email'] or '') + '" placeholder="Email" style="width:175px"/>'
+            '<input type="tel" name="telefono" value="' + (p['telefono'] or '') + '" placeholder="Teléfono" style="width:120px"/>'
+            '<button type="submit" class="btn-save">Guardar</button>'
             '</form>'
             '</td>'
-            '</tr>'
+            '<td>'
+            '<form method="POST" action="/admin/proveedores/eliminar" onsubmit="return confirm(\'' + confirm_txt + '\')" style="display:inline">'
+            '<input type="hidden" name="id" value="' + str(p['id']) + '"/>'
+            '<button type="submit" class="btn-del">🗑 Eliminar</button>'
+            '</form>'
+            '</td></tr>'
         )
 
-    msg_html = '<div class="msg">Cambios guardados correctamente</div>' if msg else ''
-    nav_with_proveedores = ADMIN_NAV.replace(
-        '<a href="/admin/ventas"',
-        '<a href="/admin/proveedores" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Proveedores</a> <a href="/admin/ventas"'
-    )
-    return (
-        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Proveedores - Admin</title>' + ADMIN_CSS + '</head><body>' + nav_with_proveedores +
-        '<div class="container"><h1>Proveedores</h1>'
-        f'<p class="sub">{len(rows)} proveedor{"es" if len(rows)!=1 else ""} registrados</p>'
-        + msg_html +
+    msg_html = '<div class="msg-ok">✅ ' + msg.replace('+',' ') + '</div>' if msg else ''
+    body = (
+        '<h1>Proveedores</h1>'
+        '<p class="sub">' + str(len(rows)) + ' proveedor' + ('es' if len(rows)!=1 else '') + ' registrados</p>'
+        + msg_html + add_form +
         '<table><thead><tr>'
-        '<th>ID</th><th>Nombre</th><th>Contacto</th><th>Email</th><th>Telefono</th><th>Productos</th><th>Editar</th>'
-        f'</tr></thead><tbody>{tbody}</tbody></table>'
-        '</div></body></html>'
+        '<th>ID</th><th>Productos</th><th>Nombre</th><th>Contacto</th><th>Email</th><th>Teléfono</th><th>Eliminar</th>'
+        '</tr></thead><tbody>' + tbody + '</tbody></table>'
     )
+    return _page('Proveedores', body, 'proveedores')
+
+
+@app.route('/admin/proveedores/agregar', methods=['POST'])
+@admin_required
+def admin_agregar_proveedor():
+    nombre   = request.form.get('nombre','').strip()
+    contacto = request.form.get('contacto','').strip()
+    email    = request.form.get('email','').strip()
+    telefono = request.form.get('telefono','').strip()
+    if not nombre:
+        return redirect('/admin/proveedores')
+    db = get_db()
+    db.execute('INSERT INTO proveedores (nombre, contacto, email, telefono) VALUES (?,?,?,?)',
+               (nombre, contacto or None, email or None, telefono or None))
+    db.commit(); db.close()
+    return redirect('/admin/proveedores?msg=Proveedor+agregado+correctamente')
 
 
 @app.route('/admin/proveedores/editar', methods=['POST'])
@@ -791,9 +770,76 @@ def admin_editar_proveedor():
     db = get_db()
     db.execute('UPDATE proveedores SET nombre=?, contacto=?, email=?, telefono=? WHERE id=?',
                (nombre, contacto or None, email or None, telefono or None, pid))
-    db.commit()
+    db.commit(); db.close()
+    return redirect('/admin/proveedores?msg=Proveedor+actualizado+correctamente')
+
+
+@app.route('/admin/proveedores/eliminar', methods=['POST'])
+@admin_required
+def admin_eliminar_proveedor():
+    pid = int(request.form.get('id'))
+    db  = get_db()
+    db.execute('UPDATE productos SET proveedor_id=NULL WHERE proveedor_id=?', (pid,))
+    db.execute('DELETE FROM proveedores WHERE id=?', (pid,))
+    db.commit(); db.close()
+    return redirect('/admin/proveedores?msg=Proveedor+eliminado')
+
+
+# ── Ventas ────────────────────────────────────────────────────────────────────
+@app.route('/admin/ventas')
+@admin_required
+def admin_ventas():
+    db  = get_db()
+    ventas = db.execute(
+        'SELECT v.id, v.fecha, v.total, v.estado, v.metodo_pago, '
+        'c.nombre AS cnombre, c.email AS cemail '
+        'FROM ventas v JOIN clientes c ON v.cliente_id=c.id '
+        'ORDER BY v.fecha DESC'
+    ).fetchall()
+
+    tbody = ''
+    total_ingresos = 0
+    for v in ventas:
+        detalles = db.execute(
+            'SELECT dv.cantidad, p.nombre FROM detalle_venta dv '
+            'JOIN productos p ON dv.producto_id=p.id WHERE dv.venta_id=?', (v['id'],)
+        ).fetchall()
+        items = ', '.join(d['nombre'] + ' ×' + str(d['cantidad']) for d in detalles)
+        if v['estado'] == 'pagado':
+            total_ingresos += v['total']
+        sc = '#6fcf97' if v['estado']=='pagado' else '#e74c3c'
+        tbody += (
+            '<tr>'
+            '<td style="font-weight:700;color:#f0c14b">#' + str(v['id']) + '</td>'
+            '<td style="font-size:.78rem;color:#7a7167">' + str(v['fecha'])[:16] + '</td>'
+            '<td><strong style="font-size:.88rem">' + v['cnombre'] + '</strong><br>'
+            '<small style="color:#7a7167">' + v['cemail'] + '</small></td>'
+            '<td style="font-size:.82rem;color:#9a9088;max-width:240px">' + items + '</td>'
+            '<td style="font-weight:700;color:#faf8f4">$' + f'{v["total"]:,.2f}' + '</td>'
+            '<td style="color:' + sc + ';font-weight:600">' + v['estado'].upper() + '</td>'
+            '<td style="font-size:.82rem;color:#7a7167">' + v['metodo_pago'] + '</td>'
+            '</tr>'
+        )
     db.close()
-    return redirect('/admin/proveedores?msg=1')
+
+    banner = (
+        '<div style="background:#1a3a2a;border:1px solid #2e7d5a;border-radius:10px;'
+        'padding:.85rem 1.25rem;margin-bottom:1.5rem;display:inline-block">'
+        '<span style="font-size:.82rem;color:#7a7167">Ingresos totales: </span>'
+        '<strong style="font-size:1.2rem;color:#6fcf97;font-weight:800">$' + f'{total_ingresos:,.2f}' + ' MXN</strong></div>'
+    )
+    body = (
+        '<h1>Ventas</h1>'
+        '<p class="sub">' + str(len(ventas)) + ' venta' + ('s' if len(ventas)!=1 else '') + ' registradas</p>'
+        + banner +
+        '<table><thead><tr>'
+        '<th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Total</th><th>Estado</th><th>Pago</th>'
+        '</tr></thead><tbody>' + tbody + '</tbody></table>'
+    )
+    return _page('Ventas', body, 'ventas')
+
+
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
