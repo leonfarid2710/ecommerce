@@ -413,6 +413,7 @@ ADMIN_NAV = """
     <a href="/admin" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none;transition:all .15s" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Dashboard</a>
     <a href="/admin/productos" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Productos</a>
     <a href="/admin/usuarios" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Usuarios</a>
+    <a href="/admin/proveedores" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Proveedores</a>
     <a href="/admin/ventas" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Ventas</a>
     <a href="/admin/logout" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;background:#3a3835;color:#faf8f4;text-decoration:none">Salir</a>
   </div>
@@ -524,6 +525,7 @@ def admin_dashboard():
         '<a href="/admin/productos" style="padding:.5rem 1rem;background:#d4541a;color:#fff;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">📦 Gestionar productos</a>'
         '<a href="/admin/usuarios" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">👥 Ver usuarios</a>'
         '<a href="/admin/ventas" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">🛒 Ver ventas</a>'
+        '<a href="/admin/proveedores" style="padding:.5rem 1rem;background:#2a2825;color:#faf8f4;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600">🏭 Proveedores</a>'
         '</div></div></body></html>'
     )
 
@@ -600,30 +602,43 @@ def admin_usuarios():
     ).fetchall()
     db.close()
 
+    msg = request.args.get('msg','')
     tbody = ''
     for u in rows:
+        confirm_msg = 'Eliminar a ' + u['nombre'] + '? Esta accion no se puede deshacer.'
         tbody += (
             '<tr>'
-            f'<td>{u["id"]}</td>'
-            f'<td><strong>{u["nombre"]}</strong></td>'
-            f'<td>{u["email"]}</td>'
-            f'<td>{u["telefono"] or "-"}</td>'
-            f'<td style="color:#7a7167;font-size:.8rem">{u["fecha_registro"]}</td>'
-            f'<td style="color:#f0c14b;font-weight:700">{u["total_compras"]}</td>'
-            f'<td style="color:#2e7d5a;font-weight:700">${u["total_gastado"]:,.2f}</td>'
+            '<td style="color:#7a7167">' + str(u['id']) + '</td>'
+            '<td style="font-size:.8rem;color:#7a7167">' + str(u['fecha_registro'])[:10] + '</td>'
+            '<td style="color:#f0c14b;font-weight:700">' + str(u['total_compras']) + '</td>'
+            '<td style="color:#2e7d5a;font-weight:700">$' + f'{u["total_gastado"]:,.2f}' + '</td>'
+            '<td>'
+            '<form method="POST" action="/admin/usuarios/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem">'
+            '<input type="hidden" name="id" value="' + str(u['id']) + '"/>'
+            '<input type="text" name="nombre" value="' + u['nombre'] + '" style="width:130px"/>'
+            '<input type="email" name="email" value="' + u['email'] + '" style="width:160px"/>'
+            '<input type="text" name="telefono" value="' + (u['telefono'] or '') + '" placeholder="Tel" style="width:110px"/>'
+            '<button type="submit" class="save-btn">Guardar</button>'
+            '</form><br>'
+            '<form method="POST" action="/admin/usuarios/eliminar" style="display:inline" onsubmit="return confirm('' + confirm_msg + '')">'
+            '<input type="hidden" name="id" value="' + str(u['id']) + '"/>'
+            '<button type="submit" style="padding:.3rem .7rem;background:#c0392b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600">Eliminar usuario</button>'
+            '</form>'
+            '</td>'
             '</tr>'
         )
 
+    msg_html = '<div class="msg">' + msg.replace('+',' ') + '</div>' if msg else ''
     return (
         '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<title>Usuarios - Admin</title>' + ADMIN_CSS + '</head><body>' + ADMIN_NAV +
         '<div class="container"><h1>Usuarios Registrados</h1>'
-        f'<p class="sub">{len(rows)} usuario{"s" if len(rows)!=1 else ""} en la plataforma</p>'
+        '<p class="sub">' + str(len(rows)) + ' usuario' + ('s' if len(rows)!=1 else '') + ' en la plataforma</p>'
+        + msg_html +
         '<table><thead><tr>'
-        '<th>ID</th><th>Nombre</th><th>Email</th><th>Telefono</th>'
-        '<th>Registro</th><th>Compras</th><th>Total gastado</th>'
-        f'</tr></thead><tbody>{tbody}</tbody></table>'
+        '<th>ID</th><th>Registro</th><th>Compras</th><th>Gastado</th><th>Editar / Eliminar</th>'
+        '</tr></thead><tbody>' + tbody + '</tbody></table>'
         '</div></body></html>'
     )
 
@@ -679,6 +694,106 @@ def admin_ventas():
         '</div></body></html>'
     )
 
+
+
+
+
+@app.route('/admin/usuarios/editar', methods=['POST'])
+@admin_required
+def admin_editar_usuario():
+    uid      = int(request.form.get('id'))
+    nombre   = request.form.get('nombre','').strip()
+    email    = request.form.get('email','').strip().lower()
+    telefono = request.form.get('telefono','').strip()
+    db = get_db()
+    db.execute('UPDATE clientes SET nombre=?, email=?, telefono=? WHERE id=?',
+               (nombre, email, telefono or None, uid))
+    db.commit()
+    db.close()
+    return redirect('/admin/usuarios?msg=Usuario+actualizado')
+
+
+@app.route('/admin/usuarios/eliminar', methods=['POST'])
+@admin_required
+def admin_eliminar_usuario():
+    uid = int(request.form.get('id'))
+    db  = get_db()
+    db.execute('DELETE FROM items_carrito WHERE carrito_id IN (SELECT id FROM carrito WHERE cliente_id=?)', (uid,))
+    db.execute('DELETE FROM carrito WHERE cliente_id=?', (uid,))
+    db.execute('DELETE FROM clientes WHERE id=?', (uid,))
+    db.commit()
+    db.close()
+    return redirect('/admin/usuarios?msg=Usuario+eliminado')
+
+
+@app.route('/admin/proveedores')
+@admin_required
+def admin_proveedores():
+    db   = get_db()
+    rows = db.execute(
+        'SELECT p.id, p.nombre, p.contacto, p.email, p.telefono, COUNT(pr.id) AS total_productos '
+        'FROM proveedores p LEFT JOIN productos pr ON pr.proveedor_id=p.id '
+        'GROUP BY p.id ORDER BY p.nombre'
+    ).fetchall()
+    db.close()
+    msg = request.args.get('msg','')
+
+    tbody = ''
+    for p in rows:
+        tbody += (
+            '<tr>'
+            f'<td>{p["id"]}</td>'
+            f'<td><strong>{p["nombre"]}</strong></td>'
+            f'<td>{p["contacto"] or "-"}</td>'
+            f'<td>{p["email"] or "-"}</td>'
+            f'<td>{p["telefono"] or "-"}</td>'
+            f'<td style="color:#f0c14b;font-weight:700">{p["total_productos"]}</td>'
+            '<td>'
+            f'<form method="POST" action="/admin/proveedores/editar" style="display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
+            f'<input type="hidden" name="id" value="{p["id"]}"/>'
+            f'<input type="text" name="nombre" value="{p["nombre"]}" style="width:130px"/>'
+            f'<input type="text" name="contacto" value="{p["contacto"] or ""}" placeholder="Contacto" style="width:110px"/>'
+            f'<input type="text" name="email" value="{p["email"] or ""}" placeholder="Email" style="width:140px"/>'
+            f'<input type="text" name="telefono" value="{p["telefono"] or ""}" placeholder="Tel" style="width:110px"/>'
+            '<button type="submit" class="save-btn">Guardar</button>'
+            '</form>'
+            '</td>'
+            '</tr>'
+        )
+
+    msg_html = '<div class="msg">Cambios guardados correctamente</div>' if msg else ''
+    nav_with_proveedores = ADMIN_NAV.replace(
+        '<a href="/admin/ventas"',
+        '<a href="/admin/proveedores" style="padding:.4rem .9rem;border-radius:6px;font-size:.85rem;color:#9a9088;text-decoration:none" onmouseover="this.style.background='#d4541a';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#9a9088'">Proveedores</a> <a href="/admin/ventas"'
+    )
+    return (
+        '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Proveedores - Admin</title>' + ADMIN_CSS + '</head><body>' + nav_with_proveedores +
+        '<div class="container"><h1>Proveedores</h1>'
+        f'<p class="sub">{len(rows)} proveedor{"es" if len(rows)!=1 else ""} registrados</p>'
+        + msg_html +
+        '<table><thead><tr>'
+        '<th>ID</th><th>Nombre</th><th>Contacto</th><th>Email</th><th>Telefono</th><th>Productos</th><th>Editar</th>'
+        f'</tr></thead><tbody>{tbody}</tbody></table>'
+        '</div></body></html>'
+    )
+
+
+@app.route('/admin/proveedores/editar', methods=['POST'])
+@admin_required
+def admin_editar_proveedor():
+    pid      = int(request.form.get('id'))
+    nombre   = request.form.get('nombre','').strip()
+    contacto = request.form.get('contacto','').strip()
+    email    = request.form.get('email','').strip()
+    telefono = request.form.get('telefono','').strip()
+    db = get_db()
+    db.execute('UPDATE proveedores SET nombre=?, contacto=?, email=?, telefono=? WHERE id=?',
+               (nombre, contacto or None, email or None, telefono or None, pid))
+    db.commit()
+    db.close()
+    return redirect('/admin/proveedores?msg=1')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
