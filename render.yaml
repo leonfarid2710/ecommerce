@@ -3,6 +3,7 @@ services:
     name: starup-ecommerce
     runtime: python
     rootDir: backend
+    pythonVersion: "3.11.9"
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
     envVars:
@@ -10,5 +11,5 @@ services:
         generateValue: true
       - key: RENDER
         value: true
-      - key: DB_PATH
-        value: /tmp/ecommerce.db
+      - key: ADMIN_PASSWORD
+        value: admin1234
