@@ -7,6 +7,7 @@ Produccion:      gunicorn wsgi:app  (usa PostgreSQL via DATABASE_URL)
 import os
 import sys
 import hashlib
+import re
 from flask import Flask, request, jsonify, session, send_from_directory, Response, redirect
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -31,17 +32,25 @@ if os.environ.get('RENDER'):
 # ─────────────────────────────────────────────────────────────────────────────
 #  BASE DE DATOS  (PostgreSQL en produccion, SQLite en local)
 # ─────────────────────────────────────────────────────────────────────────────
+def _parse_pg_url(url):
+    import urllib.parse
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    p = urllib.parse.urlparse(url)
+    return {'host': p.hostname, 'port': p.port or 5432,
+            'database': p.path.lstrip('/'), 'user': p.username, 'password': p.password}
+
+
 def get_db():
     if USE_POSTGRES:
-        import psycopg2
-        import psycopg2.extras
-        url = DATABASE_URL
-        # psycopg2 necesita postgresql:// no postgres://
-        if url.startswith('postgres://'):
-            url = url.replace('postgres://', 'postgresql://', 1)
-        conn = psycopg2.connect(url)
-        conn.autocommit = False
-        return conn
+        import pg8000.native, ssl
+        p   = _parse_pg_url(DATABASE_URL)
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return pg8000.native.Connection(
+            host=p['host'], port=p['port'], database=p['database'],
+            user=p['user'], password=p['password'], ssl_context=ctx)
     else:
         import sqlite3
         conn = sqlite3.connect(DB_PATH)
@@ -51,54 +60,56 @@ def get_db():
 
 
 def qmark(sql):
-    """Convierte ? de SQLite a %s de PostgreSQL segun el motor activo."""
+    if not USE_POSTGRES:
+        return sql
+    count = [0]
+    def repl(m):
+        count[0] += 1
+        return f'${count[0]}'
+    return re.sub(r'\?', repl, sql)
+
+
+def fetchrow(conn, sql, params=()):
     if USE_POSTGRES:
-        return sql.replace('?', '%s')
-    return sql
+        rows = conn.run(qmark(sql), *params)
+        cols = [c['name'] for c in conn.columns]
+        return dict(zip(cols, rows[0])) if rows else None
+    r = conn.execute(qmark(sql), params).fetchone()
+    return dict(r) if r else None
 
 
-def fetchrow(cursor_or_conn, sql, params=()):
-    """Ejecuta y devuelve una fila como dict."""
+def fetchall(conn, sql, params=()):
     if USE_POSTGRES:
-        cur = cursor_or_conn.cursor(cursor_factory=__import__('psycopg2').extras.RealDictCursor)
-        cur.execute(qmark(sql), params)
-        return cur.fetchone()
-    return cursor_or_conn.execute(qmark(sql), params).fetchone()
-
-
-def fetchall(cursor_or_conn, sql, params=()):
-    """Ejecuta y devuelve todas las filas como lista de dicts."""
-    if USE_POSTGRES:
-        cur = cursor_or_conn.cursor(cursor_factory=__import__('psycopg2').extras.RealDictCursor)
-        cur.execute(qmark(sql), params)
-        return cur.fetchall()
-    return cursor_or_conn.execute(qmark(sql), params).fetchall()
+        rows = conn.run(qmark(sql), *params)
+        cols = [c['name'] for c in conn.columns]
+        return [dict(zip(cols, r)) for r in rows]
+    return [dict(r) for r in conn.execute(qmark(sql), params).fetchall()]
 
 
 def execute(conn, sql, params=()):
-    """Ejecuta una sentencia DML y devuelve el cursor."""
     if USE_POSTGRES:
-        cur = conn.cursor()
-        cur.execute(qmark(sql), params)
-        return cur
+        conn.run(qmark(sql), *params)
+        return conn
     return conn.execute(qmark(sql), params)
 
 
-def lastrowid(conn, cur, table, pk='id'):
-    """Obtiene el ID del ultimo registro insertado."""
+def lastrowid(conn, cur=None, table=None, pk='id'):
     if USE_POSTGRES:
-        cur2 = conn.cursor()
-        cur2.execute(f'SELECT lastval()')
-        return cur2.fetchone()[0]
-    return cur
+        return conn.run('SELECT lastval()')[0][0]
+    return cur.lastrowid if cur else None
 
 
 def commit(conn):
-    conn.commit()
+    if not USE_POSTGRES:
+        conn.commit()
 
 
 def close(conn):
-    conn.close()
+    try:
+        conn.close()
+    except Exception:
+        pass
+
 
 
 def init_db():
@@ -159,18 +170,17 @@ def init_db():
                 cantidad    INTEGER NOT NULL DEFAULT 1
             )''',
         ]
-        cur = conn.cursor()
         for stmt in stmts:
-            cur.execute(stmt)
+            conn.run(stmt)
         # Solo insertar seed si las tablas estan vacias
-        cur.execute('SELECT COUNT(*) FROM proveedores')
-        if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES (%s,%s,%s,%s)",
-                        ('TechSupply MX','Laura Gomez','laura@techsupply.mx','9811234567'))
-            cur.execute("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES (%s,%s,%s,%s)",
-                        ('Moda Campeche','Pedro Dzul','pedro@modacampeche.mx','9819876543'))
-            cur.execute("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES (%s,%s,%s,%s)",
-                        ('Artesanias del Sureste','Ana Canul','ana@artesaniassureste.mx','9817654321'))
+        count = conn.run('SELECT COUNT(*) FROM proveedores')
+        if count[0][0] == 0:
+            conn.run("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES ($1,$2,$3,$4)",
+                        'TechSupply MX','Laura Gomez','laura@techsupply.mx','9811234567')
+            conn.run("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES ($1,$2,$3,$4)",
+                        'Moda Campeche','Pedro Dzul','pedro@modacampeche.mx','9819876543')
+            conn.run("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES ($1,$2,$3,$4)",
+                        'Artesanias del Sureste','Ana Canul','ana@artesaniassureste.mx','9817654321')
             productos_seed = [
                 ('Laptop Ultrabook Pro','Procesador i7, 16GB RAM, 512GB SSD, pantalla 14 FHD',18500.00,12,1,'Electronica','https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400'),
                 ('Smartphone Nova X','Pantalla AMOLED 6.5, camara 108MP, bateria 5000mAh',8900.00,25,1,'Electronica','https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400'),
@@ -186,9 +196,8 @@ def init_db():
                 ('Huaraches Artesanales','Cuero genuino, suela resistente, hecho a mano',550.00,20,3,'Calzado','https://images.unsplash.com/photo-1603808033192-082d6919d3e1?w=400'),
             ]
             for p in productos_seed:
-                cur.execute('INSERT INTO productos (nombre,descripcion,precio,existencias,proveedor_id,categoria,imagen_url) VALUES (%s,%s,%s,%s,%s,%s,%s)', p)
+                conn.run('INSERT INTO productos (nombre,descripcion,precio,existencias,proveedor_id,categoria,imagen_url) VALUES ($1,$2,$3,$4,$5,$6,$7)', *p)
             print('✅ Datos de ejemplo insertados en PostgreSQL')
-        conn.commit()
         conn.close()
     else:
         import sqlite3 as _sq
@@ -248,7 +257,7 @@ def init_db():
 def hsh(p): return hashlib.sha256(p.encode()).hexdigest()
 def row(r):  return dict(r) if r else None
 def fix(d):
-    """Convierte RealDictRow de psycopg2 o sqlite3.Row a dict normal."""
+    """Convierte fila de BD a dict normal."""
     return dict(d) if d else None
 
 
