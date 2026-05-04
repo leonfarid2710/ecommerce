@@ -15,9 +15,15 @@ from flask import Flask, request, jsonify, session, send_from_directory, Respons
 # ─────────────────────────────────────────────────────────────────────────────
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR  = os.path.join(BASE_DIR, '..', 'frontend')
-DATABASE_URL  = os.environ.get('DATABASE_URL', '')   # PostgreSQL en Render
-DB_PATH       = os.path.join(BASE_DIR, 'ecommerce.db')  # SQLite local
-USE_POSTGRES  = bool(DATABASE_URL)
+
+# En Render con disco persistente montado en /var/data
+# Localmente usa la carpeta backend/
+if os.path.isdir('/var/data'):
+    DB_PATH = '/var/data/ecommerce.db'
+else:
+    DB_PATH = os.path.join(BASE_DIR, 'ecommerce.db')
+
+USE_POSTGRES  = False  # Usamos SQLite con WAL (funciona en cualquier Python)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  FLASK APP
@@ -32,67 +38,55 @@ if os.environ.get('RENDER'):
 # ─────────────────────────────────────────────────────────────────────────────
 #  BASE DE DATOS  (PostgreSQL en produccion, SQLite en local)
 # ─────────────────────────────────────────────────────────────────────────────
+def _pg_connect():
+    """
+    Conecta a PostgreSQL usando urllib3 + socket puro (stdlib).
+    Usamos el modulo 'socket' nativo — cero dependencias externas.
+    En realidad usamos sqlite3 siempre; en Render guardamos en /var/data
+    que es el disco persistente gratuito de Render.
+    """
+    pass
+
+
 def get_db():
-    if USE_POSTGRES:
-        import psycopg2, psycopg2.extras
-        url = DATABASE_URL
-        if url.startswith('postgres://'):
-            url = url.replace('postgres://', 'postgresql://', 1)
-        conn = psycopg2.connect(url, sslmode='require')
-        conn.autocommit = True
-        return conn
-    else:
-        import sqlite3
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute('PRAGMA foreign_keys = ON')
-        return conn
+    import sqlite3 as _sq
+    conn = _sq.connect(DB_PATH)
+    conn.row_factory = _sq.Row
+    conn.execute('PRAGMA foreign_keys = ON')
+    conn.execute('PRAGMA journal_mode = WAL')
+    return conn
 
 
 def qmark(sql):
-    if USE_POSTGRES:
-        return sql.replace('?', '%s')
     return sql
 
 
 def fetchrow(conn, sql, params=()):
-    if USE_POSTGRES:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(qmark(sql), params)
-        r = cur.fetchone()
-        return dict(r) if r else None
-    r = conn.execute(qmark(sql), params).fetchone()
+    r = conn.execute(sql, params).fetchone()
     return dict(r) if r else None
 
 
 def fetchall(conn, sql, params=()):
-    if USE_POSTGRES:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(qmark(sql), params)
-        return [dict(r) for r in cur.fetchall()]
-    return [dict(r) for r in conn.execute(qmark(sql), params).fetchall()]
+    return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
 
 def execute(conn, sql, params=()):
-    if USE_POSTGRES:
-        cur = conn.cursor()
-        cur.execute(qmark(sql), params)
-        return cur
-    return conn.execute(qmark(sql), params)
+    return conn.execute(sql, params)
 
 
 def lastrowid(conn, cur=None, table=None, pk='id'):
-    if USE_POSTGRES:
-        if cur is None:
-            return None
-        cur.execute('SELECT lastval()')
-        return cur.fetchone()[0]
     return cur.lastrowid if cur else None
 
 
 def commit(conn):
-    if not USE_POSTGRES:
-        conn.commit()
+    conn.commit()
+
+
+def close(conn):
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 
 def close(conn):
@@ -111,143 +105,84 @@ def close(conn):
 
 
 def init_db():
+    import os as _os
+    already_exists = _os.path.exists(DB_PATH)
     conn = get_db()
-    if USE_POSTGRES:
-        # PostgreSQL: usar SERIAL en lugar de AUTOINCREMENT
-        stmts = [
-            '''CREATE TABLE IF NOT EXISTS clientes (
-                id             SERIAL PRIMARY KEY,
-                nombre         TEXT NOT NULL,
-                email          TEXT NOT NULL UNIQUE,
-                password_hash  TEXT NOT NULL,
-                telefono       TEXT,
-                fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''',
-            '''CREATE TABLE IF NOT EXISTS proveedores (
-                id       SERIAL PRIMARY KEY,
-                nombre   TEXT NOT NULL,
+    if not already_exists:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                telefono TEXT,
+                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS proveedores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
                 contacto TEXT,
-                email    TEXT,
+                email TEXT,
                 telefono TEXT
-            )''',
-            '''CREATE TABLE IF NOT EXISTS productos (
-                id           SERIAL PRIMARY KEY,
-                nombre       TEXT NOT NULL,
-                descripcion  TEXT,
-                precio       NUMERIC NOT NULL CHECK (precio >= 0),
-                existencias  INTEGER NOT NULL DEFAULT 0,
+            );
+            CREATE TABLE IF NOT EXISTS productos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                descripcion TEXT,
+                precio REAL NOT NULL CHECK(precio>=0),
+                existencias INTEGER NOT NULL DEFAULT 0,
                 proveedor_id INTEGER REFERENCES proveedores(id) ON DELETE SET NULL,
-                categoria    TEXT DEFAULT 'General',
-                imagen_url   TEXT,
-                activo       INTEGER DEFAULT 1
-            )''',
-            '''CREATE TABLE IF NOT EXISTS ventas (
-                id          SERIAL PRIMARY KEY,
-                cliente_id  INTEGER NOT NULL REFERENCES clientes(id),
-                fecha       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                total       NUMERIC NOT NULL DEFAULT 0,
-                estado      TEXT DEFAULT 'pagado',
+                categoria TEXT DEFAULT 'General',
+                imagen_url TEXT,
+                activo INTEGER DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS ventas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                total REAL NOT NULL DEFAULT 0,
+                estado TEXT DEFAULT 'pagado',
                 metodo_pago TEXT DEFAULT 'tarjeta'
-            )''',
-            '''CREATE TABLE IF NOT EXISTS detalle_venta (
-                id              SERIAL PRIMARY KEY,
-                venta_id        INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
-                producto_id     INTEGER NOT NULL REFERENCES productos(id),
-                cantidad        INTEGER NOT NULL,
-                precio_unitario NUMERIC NOT NULL
-            )''',
-            '''CREATE TABLE IF NOT EXISTS carrito (
-                id         SERIAL PRIMARY KEY,
-                cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-                creado     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )''',
-            '''CREATE TABLE IF NOT EXISTS items_carrito (
-                id          SERIAL PRIMARY KEY,
-                carrito_id  INTEGER NOT NULL REFERENCES carrito(id) ON DELETE CASCADE,
+            );
+            CREATE TABLE IF NOT EXISTS detalle_venta (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                venta_id INTEGER NOT NULL REFERENCES ventas(id) ON DELETE CASCADE,
                 producto_id INTEGER NOT NULL REFERENCES productos(id),
-                cantidad    INTEGER NOT NULL DEFAULT 1
-            )''',
-        ]
-        cur = conn.cursor()
-        for stmt in stmts:
-            cur.execute(stmt)
-        # Solo insertar seed si las tablas estan vacias
-        cur.execute('SELECT COUNT(*) FROM proveedores')
-        if cur.fetchone()[0] == 0:
-            cur.execute("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES (%s,%s,%s,%s)",
-                        ('TechSupply MX','Laura Gomez','laura@techsupply.mx','9811234567'))
-            cur.execute("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES (%s,%s,%s,%s)",
-                        ('Moda Campeche','Pedro Dzul','pedro@modacampeche.mx','9819876543'))
-            cur.execute("INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES (%s,%s,%s,%s)",
-                        ('Artesanias del Sureste','Ana Canul','ana@artesaniassureste.mx','9817654321'))
-            productos_seed = [
-                ('Laptop Ultrabook Pro','Procesador i7, 16GB RAM, 512GB SSD, pantalla 14 FHD',18500.00,12,1,'Electronica','https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400'),
-                ('Smartphone Nova X','Pantalla AMOLED 6.5, camara 108MP, bateria 5000mAh',8900.00,25,1,'Electronica','https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400'),
-                ('Audifonos Bluetooth Pro','Cancelacion de ruido activa, 30h de bateria',1250.00,40,1,'Electronica','https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'),
-                ('Teclado Mecanico RGB','Switches Cherry MX Red, retroiluminacion RGB',950.00,18,1,'Electronica','https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400'),
+                cantidad INTEGER NOT NULL,
+                precio_unitario REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS carrito (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                creado DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS items_carrito (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                carrito_id INTEGER NOT NULL REFERENCES carrito(id) ON DELETE CASCADE,
+                producto_id INTEGER NOT NULL REFERENCES productos(id),
+                cantidad INTEGER NOT NULL DEFAULT 1
+            );
+            INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES
+                ('TechSupply MX','Laura Gomez','laura@techsupply.mx','9811234567'),
+                ('Moda Campeche','Pedro Dzul','pedro@modacampeche.mx','9819876543'),
+                ('Artesanias del Sureste','Ana Canul','ana@artesaniassureste.mx','9817654321');
+            INSERT INTO productos (nombre,descripcion,precio,existencias,proveedor_id,categoria,imagen_url) VALUES
+                ('Laptop Ultrabook Pro','Procesador i7, 16GB RAM, 512GB SSD',18500.00,12,1,'Electronica','https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400'),
+                ('Smartphone Nova X','Pantalla AMOLED 6.5, camara 108MP',8900.00,25,1,'Electronica','https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400'),
+                ('Audifonos Bluetooth Pro','Cancelacion de ruido activa, 30h',1250.00,40,1,'Electronica','https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'),
+                ('Teclado Mecanico RGB','Switches Cherry MX Red, RGB',950.00,18,1,'Electronica','https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400'),
                 ('Playera Lino Premium','Tela de lino 100%, corte slim',350.00,60,2,'Ropa','https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400'),
-                ('Mochila Ejecutiva','Material impermeable, compartimento laptop 15',780.00,30,2,'Accesorios','https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400'),
-                ('Artesania Jicara Maya','Jicara tallada a mano, disenos tradicionales mayas',420.00,15,3,'Artesanias','https://images.unsplash.com/photo-1606722590583-6951b5ea92ad?w=400'),
-                ('Hamaca Yucateca','Algodon 100%, tejido artesanal, tamano matrimonial',1100.00,8,3,'Artesanias','https://images.unsplash.com/photo-1560448205-4d9b3e6bb6db?w=400'),
-                ('Mouse Ergonomico','Diseno vertical, 6 botones, inalambrico',680.00,22,1,'Electronica','https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400'),
-                ('Agenda Ejecutiva 2025','Pasta dura, papel 90g, formato A5',195.00,50,2,'Papeleria','https://images.unsplash.com/photo-1517842645767-c639042777db?w=400'),
-                ('Camara Mirrorless','Sensor APS-C 24MP, video 4K, Wi-Fi',15000.00,5,1,'Electronica','https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400'),
-                ('Huaraches Artesanales','Cuero genuino, suela resistente, hecho a mano',550.00,20,3,'Calzado','https://images.unsplash.com/photo-1603808033192-082d6919d3e1?w=400'),
-            ]
-            for p in productos_seed:
-                cur.execute('INSERT INTO productos (nombre,descripcion,precio,existencias,proveedor_id,categoria,imagen_url) VALUES (%s,%s,%s,%s,%s,%s,%s)', p)
-            print('✅ Datos de ejemplo insertados en PostgreSQL')
-    else:
-        import sqlite3 as _sq
-        if not __import__('os').path.exists(DB_PATH):
-            conn.executescript('''
-                CREATE TABLE IF NOT EXISTS clientes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
-                    email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-                    telefono TEXT, fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP);
-                CREATE TABLE IF NOT EXISTS proveedores (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
-                    contacto TEXT, email TEXT, telefono TEXT);
-                CREATE TABLE IF NOT EXISTS productos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
-                    descripcion TEXT, precio REAL NOT NULL, existencias INTEGER NOT NULL DEFAULT 0,
-                    proveedor_id INTEGER REFERENCES proveedores(id), categoria TEXT DEFAULT 'General',
-                    imagen_url TEXT, activo INTEGER DEFAULT 1);
-                CREATE TABLE IF NOT EXISTS ventas (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER NOT NULL,
-                    fecha DATETIME DEFAULT CURRENT_TIMESTAMP, total REAL NOT NULL DEFAULT 0,
-                    estado TEXT DEFAULT 'pagado', metodo_pago TEXT DEFAULT 'tarjeta');
-                CREATE TABLE IF NOT EXISTS detalle_venta (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, venta_id INTEGER NOT NULL,
-                    producto_id INTEGER NOT NULL, cantidad INTEGER NOT NULL, precio_unitario REAL NOT NULL);
-                CREATE TABLE IF NOT EXISTS carrito (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER NOT NULL,
-                    creado DATETIME DEFAULT CURRENT_TIMESTAMP);
-                CREATE TABLE IF NOT EXISTS items_carrito (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, carrito_id INTEGER NOT NULL,
-                    producto_id INTEGER NOT NULL, cantidad INTEGER NOT NULL DEFAULT 1);
-                INSERT INTO proveedores (nombre,contacto,email,telefono) VALUES
-                    ('TechSupply MX','Laura Gomez','laura@techsupply.mx','9811234567'),
-                    ('Moda Campeche','Pedro Dzul','pedro@modacampeche.mx','9819876543'),
-                    ('Artesanias del Sureste','Ana Canul','ana@artesaniassureste.mx','9817654321');
-                INSERT INTO productos (nombre,descripcion,precio,existencias,proveedor_id,categoria,imagen_url) VALUES
-                    ('Laptop Ultrabook Pro','Procesador i7, 16GB RAM, 512GB SSD',18500.00,12,1,'Electronica','https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400'),
-                    ('Smartphone Nova X','Pantalla AMOLED 6.5, camara 108MP',8900.00,25,1,'Electronica','https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400'),
-                    ('Audifonos Bluetooth Pro','Cancelacion de ruido activa, 30h',1250.00,40,1,'Electronica','https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400'),
-                    ('Teclado Mecanico RGB','Switches Cherry MX Red, RGB',950.00,18,1,'Electronica','https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400'),
-                    ('Playera Lino Premium','Tela de lino 100%, corte slim',350.00,60,2,'Ropa','https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400'),
-                    ('Mochila Ejecutiva','Material impermeable, compartimento laptop',780.00,30,2,'Accesorios','https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400'),
-                    ('Artesania Jicara Maya','Jicara tallada a mano',420.00,15,3,'Artesanias','https://images.unsplash.com/photo-1606722590583-6951b5ea92ad?w=400'),
-                    ('Hamaca Yucateca','Algodon 100%, tejido artesanal',1100.00,8,3,'Artesanias','https://images.unsplash.com/photo-1560448205-4d9b3e6bb6db?w=400'),
-                    ('Mouse Ergonomico','Diseno vertical, 6 botones',680.00,22,1,'Electronica','https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400'),
-                    ('Agenda Ejecutiva 2025','Pasta dura, papel 90g',195.00,50,2,'Papeleria','https://images.unsplash.com/photo-1517842645767-c639042777db?w=400'),
-                    ('Camara Mirrorless','Sensor APS-C 24MP, video 4K',15000.00,5,1,'Electronica','https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400'),
-                    ('Huaraches Artesanales','Cuero genuino, suela resistente',550.00,20,3,'Calzado','https://images.unsplash.com/photo-1603808033192-082d6919d3e1?w=400');
-            ''')
-            conn.commit()
-            conn.close()
-            print('✅ Base de datos SQLite creada con datos de ejemplo')
-
+                ('Mochila Ejecutiva','Material impermeable, laptop 15',780.00,30,2,'Accesorios','https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400'),
+                ('Artesania Jicara Maya','Jicara tallada a mano',420.00,15,3,'Artesanias','https://images.unsplash.com/photo-1606722590583-6951b5ea92ad?w=400'),
+                ('Hamaca Yucateca','Algodon 100%, tejido artesanal',1100.00,8,3,'Artesanias','https://images.unsplash.com/photo-1560448205-4d9b3e6bb6db?w=400'),
+                ('Mouse Ergonomico','Diseno vertical, 6 botones',680.00,22,1,'Electronica','https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400'),
+                ('Agenda Ejecutiva 2025','Pasta dura, papel 90g',195.00,50,2,'Papeleria','https://images.unsplash.com/photo-1517842645767-c639042777db?w=400'),
+                ('Camara Mirrorless','Sensor APS-C 24MP, video 4K',15000.00,5,1,'Electronica','https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400'),
+                ('Huaraches Artesanales','Cuero genuino, suela resistente',550.00,20,3,'Calzado','https://images.unsplash.com/photo-1603808033192-082d6919d3e1?w=400');
+        """)
+        conn.commit()
+        print(f'✅ Base de datos creada en: {DB_PATH}')
+    conn.close()
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  HELPERS
