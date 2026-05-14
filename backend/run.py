@@ -623,6 +623,7 @@ def admin_productos():
     rows  = fetchall(db,
                      'SELECT p.*, pr.nombre AS prov FROM productos p '
                      'LEFT JOIN proveedores pr ON p.proveedor_id=pr.id '
+                     'WHERE p.activo=1 '
                      'ORDER BY p.existencias ASC, p.nombre')
     provs = fetchall(db, 'SELECT id, nombre FROM proveedores ORDER BY nombre')
     db.close()
