@@ -28,6 +28,41 @@
     .logo-star{color:var(--accent);font-size:1.5rem}
     .nav-search{flex:1;position:relative;display:flex;align-items:center}
     .nav-search input{padding-left:2.5rem;border-radius:999px;background:var(--cream);border-color:transparent}
+    .search-suggestions{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--card);border:1.5px solid var(--border);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.12);z-index:200;overflow:hidden;display:none}
+    .search-suggestions.open{display:block}
+    .suggestion-item{padding:.7rem 1rem .7rem 2.75rem;cursor:pointer;font-size:.88rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;transition:background .12s}
+    .suggestion-item:hover,.suggestion-item.active{background:var(--cream)}
+    .suggestion-cat{font-size:.74rem;color:var(--muted);background:var(--cream);padding:.2rem .55rem;border-radius:999px;white-space:nowrap}
+    /* HISTORY PAGE */
+    #history-page{display:none}
+    #history-page.open{display:block}
+    .history-header{display:flex;align-items:center;gap:1rem;margin-bottom:2rem}
+    .history-back{background:none;border:1.5px solid var(--border);padding:.5rem 1rem;border-radius:999px;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:.4rem;color:var(--ink);transition:all .15s}
+    .history-back:hover{background:var(--cream);border-color:var(--accent)}
+    .history-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;margin-bottom:2rem}
+    .history-stat{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:1.1rem 1.25rem}
+    .history-stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;margin-bottom:.2rem}
+    .history-stat-lbl{font-size:.78rem;color:var(--muted)}
+    .history-empty{text-align:center;padding:4rem 1rem;color:var(--muted)}
+    .history-empty-icon{font-size:3rem;margin-bottom:1rem}
+    .order-timeline{position:relative;padding-left:1.5rem}
+    .order-timeline::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--border);border-radius:2px}
+    .order-timeline-item{position:relative;margin-bottom:1.5rem}
+    .order-timeline-dot{position:absolute;left:-1.88rem;top:.5rem;width:14px;height:14px;background:var(--accent);border-radius:50%;border:2px solid var(--paper)}
+    .order-timeline-card{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;transition:box-shadow .15s}
+    .order-timeline-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.08)}
+    .order-tl-header{display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.2rem;background:var(--cream);flex-wrap:wrap;gap:.5rem;border-bottom:1px solid var(--border)}
+    .order-tl-id{font-weight:700;font-size:.95rem;color:var(--accent)}
+    .order-tl-date{font-size:.78rem;color:var(--muted)}
+    .order-tl-total{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem}
+    .order-tl-badge{padding:.25rem .7rem;border-radius:999px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:#e6f4ee;color:#2d9a6a}
+    .order-tl-items{padding:.75rem 1.2rem;display:flex;flex-direction:column;gap:.5rem}
+    .order-tl-product{display:flex;align-items:center;gap:.85rem}
+    .order-tl-img{width:48px;height:48px;border-radius:var(--r);object-fit:cover;background:var(--cream);flex-shrink:0}
+    .order-tl-name{font-size:.88rem;font-weight:500;flex:1}
+    .order-tl-qty{font-size:.82rem;color:var(--muted)}
+    .order-tl-price{font-weight:600;font-size:.88rem;white-space:nowrap}
+    .order-tl-footer{padding:.65rem 1.2rem;background:var(--cream);border-top:1px solid var(--border);font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem}
     .nav-search input:focus{background:var(--card);border-color:var(--accent)}
     .nav-search svg{position:absolute;left:.85rem;color:var(--muted);pointer-events:none}
     .nav-actions{display:flex;align-items:center;gap:.5rem}
@@ -268,9 +303,11 @@
     <div class="nav-search">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input id="search-input" type="text" placeholder="Buscar productos…" autocomplete="off"/>
+      <div class="search-suggestions" id="search-suggestions"></div>
     </div>
     <div class="nav-actions">
       <span id="user-label"></span>
+      <button id="btn-history" class="btn-outline" style="display:none">📋 Mis compras</button>
       <button id="btn-auth" class="btn-outline">Iniciar sesión</button>
       <button id="btn-cart-open" class="btn-icon" aria-label="Carrito">
         <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
@@ -357,6 +394,24 @@
       <div class="reviews-summary" id="reviews-summary-block"></div>
       <div class="review-list" id="review-list"></div>
     </div>
+  </div>
+</div>
+
+<!-- HISTORY PAGE -->
+<div id="history-page">
+  <div class="container" style="padding-top:2rem;padding-bottom:3rem">
+    <div class="history-header">
+      <button class="history-back" id="btn-history-back">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Volver a la tienda
+      </button>
+      <div>
+        <h1 class="title" style="font-size:1.6rem;margin-bottom:.15rem">📋 Historial de compras</h1>
+        <p style="font-size:.88rem;color:var(--muted)">Todas tus compras realizadas en Star Up</p>
+      </div>
+    </div>
+    <div class="history-stats" id="history-stats"></div>
+    <div id="history-content"><div class="history-empty"><div class="history-empty-icon">🛒</div><p>Cargando historial…</p></div></div>
   </div>
 </div>
 
@@ -524,6 +579,7 @@ function toast(msg, type='') {
 function showShop() {
   document.getElementById('shop-page').classList.remove('hidden');
   document.getElementById('detail-page').classList.remove('active');
+  document.getElementById('history-page').classList.remove('open');
   document.getElementById('cat-bar').style.display = '';
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -568,6 +624,8 @@ function setUser(user) {
     btnAuth.parentNode.replaceChild(nb, btnAuth);
     document.getElementById('btn-auth').addEventListener('click', handleLogout);
     if (heroReg) heroReg.style.display = 'none';
+    const btnHist = document.getElementById('btn-history');
+    if (btnHist) btnHist.style.display = '';
   } else {
     label.textContent   = '';
     btnAuth.textContent = 'Iniciar sesión';
@@ -576,6 +634,8 @@ function setUser(user) {
     btnAuth.parentNode.replaceChild(nb, btnAuth);
     document.getElementById('btn-auth').addEventListener('click', () => openModal('login-modal'));
     if (heroReg) heroReg.style.display = '';
+    const btnHistHide = document.getElementById('btn-history');
+    if (btnHistHide) btnHistHide.style.display = 'none';
   }
 }
 
@@ -767,11 +827,171 @@ document.getElementById('cat-list').addEventListener('click', e => {
   loadProducts();
 });
 
+// ═══════════════════ AUTOCOMPLETE ═══════════════════
 let searchTimeout;
-document.getElementById('search-input').addEventListener('input', e => {
+let acIndex = -1;
+
+async function fetchSuggestions(q) {
+  if (!q || q.length < 2) { closeSuggestions(); return; }
+  try {
+    const { ok, data } = await api('GET', `/products/suggestions?q=${encodeURIComponent(q)}`);
+    if (!ok || !data.suggestions.length) { closeSuggestions(); return; }
+    renderSuggestions(data.suggestions, q);
+  } catch { closeSuggestions(); }
+}
+
+function renderSuggestions(sugs, q) {
+  const box = document.getElementById('search-suggestions');
+  acIndex = -1;
+  box.innerHTML = sugs.map((s, i) =>
+    `<div class="suggestion-item" data-i="${i}" data-val="${s.nombre}" tabindex="-1">
+      <span>${highlightMatch(s.nombre, q)}</span>
+      <span class="suggestion-cat">${s.categoria}</span>
+    </div>`
+  ).join('');
+  box.querySelectorAll('.suggestion-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      selectSuggestion(el.dataset.val);
+    });
+  });
+  box.classList.add('open');
+}
+
+function highlightMatch(text, q) {
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i === -1) return text;
+  return text.slice(0,i) + `<strong>${text.slice(i, i+q.length)}</strong>` + text.slice(i+q.length);
+}
+
+function closeSuggestions() {
+  document.getElementById('search-suggestions').classList.remove('open');
+  acIndex = -1;
+}
+
+function selectSuggestion(val) {
+  const inp = document.getElementById('search-input');
+  inp.value = val;
+  state.searchQuery = val;
+  closeSuggestions();
+  showShop();
+  loadProducts();
+}
+
+const searchInp = document.getElementById('search-input');
+searchInp.addEventListener('input', e => {
+  const q = e.target.value.trim();
   clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => { state.searchQuery = e.target.value.trim(); showShop(); loadProducts(); }, 350);
+  searchTimeout = setTimeout(() => {
+    state.searchQuery = q;
+    showShop();
+    loadProducts();
+    fetchSuggestions(q);
+  }, 280);
 });
+
+searchInp.addEventListener('keydown', e => {
+  const items = document.querySelectorAll('.suggestion-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIndex = Math.min(acIndex + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIndex = Math.max(acIndex - 1, -1);
+    items.forEach((el, i) => el.classList.toggle('active', i === acIndex));
+  } else if (e.key === 'Enter' && acIndex >= 0) {
+    e.preventDefault();
+    selectSuggestion(items[acIndex].dataset.val);
+  } else if (e.key === 'Escape') {
+    closeSuggestions();
+  }
+});
+
+searchInp.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
+
+// ═══════════════════ HISTORY PAGE ═══════════════════
+function showHistory() {
+  document.getElementById('shop-page').style.display   = 'none';
+  document.getElementById('detail-page').style.display = 'none';
+  document.getElementById('history-page').classList.add('open');
+  renderHistoryPage();
+}
+
+function hideHistory() {
+  document.getElementById('history-page').classList.remove('open');
+  showShop();
+}
+
+async function renderHistoryPage() {
+  const statsEl   = document.getElementById('history-stats');
+  const contentEl = document.getElementById('history-content');
+  contentEl.innerHTML = '<div class="history-empty"><div class="history-empty-icon">⏳</div><p>Cargando historial…</p></div>';
+  const { ok, data } = await api('GET', '/checkout/orders');
+  if (!ok) {
+    contentEl.innerHTML = '<div class="history-empty"><div class="history-empty-icon">⚠️</div><p>Error al cargar el historial.</p></div>';
+    return;
+  }
+  const orders = data.orders || [];
+  if (!orders.length) {
+    statsEl.innerHTML = '';
+    contentEl.innerHTML = `<div class="history-empty">
+      <div class="history-empty-icon">🛍️</div>
+      <p style="font-weight:600;margin-bottom:.4rem">Aún no tienes compras</p>
+      <p style="font-size:.88rem">¡Explora nuestro catálogo y realiza tu primera compra!</p>
+      <button class="btn-primary" onclick="hideHistory()" style="margin-top:1.5rem;padding:.75rem 2rem">Ver productos</button>
+    </div>`;
+    return;
+  }
+  // Stats
+  const totalGastado = orders.reduce((s, o) => s + o.total, 0);
+  const totalItems   = orders.reduce((s, o) => s + (o.items || []).reduce((a, i) => a + i.cantidad, 0), 0);
+  const metodos      = [...new Set(orders.map(o => o.metodo_pago))].join(', ');
+  statsEl.innerHTML = `
+    <div class="history-stat">
+      <div class="history-stat-val" style="color:var(--accent)">${orders.length}</div>
+      <div class="history-stat-lbl">Pedidos realizados</div>
+    </div>
+    <div class="history-stat">
+      <div class="history-stat-val" style="color:var(--success)">${fmt(totalGastado)}</div>
+      <div class="history-stat-lbl">Total gastado</div>
+    </div>
+    <div class="history-stat">
+      <div class="history-stat-val">${totalItems}</div>
+      <div class="history-stat-lbl">Productos comprados</div>
+    </div>
+    <div class="history-stat">
+      <div class="history-stat-val" style="font-size:1rem;padding-top:.3rem">${metodos}</div>
+      <div class="history-stat-lbl">Método(s) de pago</div>
+    </div>`;
+  // Timeline
+  contentEl.innerHTML = `<div class="order-timeline">${orders.map(o => {
+    const productsHTML = (o.items || []).map(i => `
+      <div class="order-tl-product">
+        <img class="order-tl-img" src="${i.imagen_url||''}" alt="${i.nombre}" onerror="this.src='https://via.placeholder.com/48'"/>
+        <span class="order-tl-name">${i.nombre}</span>
+        <span class="order-tl-qty">×${i.cantidad}</span>
+        <span class="order-tl-price">${fmt(i.precio_unitario * i.cantidad)}</span>
+      </div>`).join('');
+    return `<div class="order-timeline-item">
+      <div class="order-timeline-dot"></div>
+      <div class="order-timeline-card">
+        <div class="order-tl-header">
+          <span class="order-tl-id">Pedido #${o.id}</span>
+          <span class="order-tl-date">${String(o.fecha).slice(0,16).replace('T',' ')}</span>
+          <span class="order-tl-total">${fmt(o.total)}</span>
+          <span class="order-tl-badge">${o.estado}</span>
+        </div>
+        <div class="order-tl-items">${productsHTML}</div>
+        <div class="order-tl-footer">💳 ${o.metodo_pago} &nbsp;·&nbsp; ${(o.items||[]).length} producto(s)</div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+document.getElementById('btn-history').addEventListener('click', showHistory);
+document.getElementById('btn-history-back').addEventListener('click', hideHistory);
 
 // ═══════════════════ DETAIL PAGE ═══════════════════
 function getExtraImages(p) {
@@ -1266,7 +1486,6 @@ document.getElementById('btn-success-close').addEventListener('click', () => {
   await loadProducts();
   if (state.user) {
     await loadCart();
-    await loadOrders();
   }
 })();
 </script>

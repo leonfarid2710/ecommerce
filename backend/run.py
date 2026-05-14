@@ -263,6 +263,21 @@ def list_products():
     db.close()
     return jsonify(products=rows)
 
+@app.route('/api/products/suggestions', methods=['GET'])
+def product_suggestions():
+    q  = request.args.get('q', '').strip()
+    if not q or len(q) < 2:
+        return jsonify(suggestions=[])
+    db   = get_db()
+    rows = fetchall(db,
+        'SELECT DISTINCT nombre, categoria FROM productos '
+        'WHERE activo=1 AND (nombre LIKE ? OR categoria LIKE ? OR descripcion LIKE ?) '
+        'ORDER BY nombre LIMIT 8',
+        (f'{q}%', f'{q}%', f'%{q}%'))
+    db.close()
+    suggestions = [{'nombre': r['nombre'], 'categoria': r['categoria']} for r in rows]
+    return jsonify(suggestions=suggestions)
+
 @app.route('/api/products/categories', methods=['GET'])
 def get_categories():
     db   = get_db()
@@ -644,6 +659,7 @@ def admin_productos():
     for p in rows:
         sc   = '#e74c3c' if p['existencias'] == 0 else ('#f0c14b' if p['existencias'] <= 5 else '#6fcf97')
         prov = p['prov'] or '-'
+        nombre_escaped = p['nombre'].replace('"', '')
         tbody += (
             '<tr>'
             f'<td style="color:#6a6560">{p["id"]}</td>'
@@ -659,13 +675,20 @@ def admin_productos():
             f'<input type="number" name="existencias" value="{p["existencias"]}" min="0" style="width:68px" title="Stock"/>'
             '<button type="submit" class="btn-save">Guardar</button>'
             '</form>'
+            '</td>'
+            '<td>'
+            f'<form method="POST" action="/admin/productos/eliminar" style="display:inline" '
+            f'onsubmit="return confirm(\"Eliminar {nombre_escaped}? Esta accion es permanente.\")">'
+            f'<input type="hidden" name="id" value="{p["id"]}"/>'
+            '<button type="submit" class="btn-del">🗑 Eliminar</button>'
+            '</form>'
             '</td></tr>')
     msg_html = '<div class="msg-ok">✅ ' + msg.replace('+', ' ') + '</div>' if msg else ''
     err_html = '<div class="msg-err">⚠️ '  + err.replace('+', ' ') + '</div>' if err else ''
     body = (f'<h1>Productos</h1><p class="sub">Agrega nuevos productos o edita precio y stock.</p>'
             + msg_html + err_html + add_form +
             '<table><thead><tr>'
-            '<th>ID</th><th>Producto</th><th>Stock</th><th>Precio</th><th>Estado</th><th>Editar precio/stock</th>'
+            '<th>ID</th><th>Producto</th><th>Stock</th><th>Precio</th><th>Estado</th><th>Editar</th><th>Eliminar</th>'
             f'</tr></thead><tbody>{tbody}</tbody></table>')
     return _page('Productos', body, 'productos')
 
@@ -702,6 +725,17 @@ def admin_editar_producto():
     db.commit()
     db.close()
     return redirect('/admin/productos?msg=Producto+actualizado+correctamente')
+
+@app.route('/admin/productos/eliminar', methods=['POST'])
+@admin_required
+def admin_eliminar_producto():
+    pid = int(request.form.get('id'))
+    db  = get_db()
+    # Soft-delete: marca como inactivo para conservar historial de ventas
+    mutate(db, 'UPDATE productos SET activo=0 WHERE id=?', (pid,))
+    db.commit()
+    db.close()
+    return redirect('/admin/productos?msg=Producto+eliminado+correctamente')
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  ADMIN — usuarios
