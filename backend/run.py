@@ -650,8 +650,12 @@ def admin_productos():
         '<div class="form-row" style="margin-top:.75rem">'
         '<div class="form-field" style="flex:1"><label>Descripcion</label>'
         '<input type="text" name="descripcion" placeholder="Descripcion breve del producto" style="width:100%"/></div>'
-        '<div class="form-field" style="flex:1"><label>URL de imagen</label>'
-        '<input type="text" name="imagen_url" placeholder="https://images.unsplash.com/..." style="width:100%"/></div>'
+        '<div class="form-field" style="flex:1"><label>URL de imagen '\
+        '<span style="font-size:.7rem;color:#6a6560;font-weight:400">(Unsplash, Imgur, etc.)</span></label>'\
+        '<input type="text" name="imagen_url" placeholder="https://images.unsplash.com/photo-XXXXX?w=400" style="width:100%"/>'\
+        '<small style="color:#6a6560;font-size:.72rem;margin-top:.2rem;display:block">'\
+        '💡 Tip: busca en <a href="https://unsplash.com" target="_blank" style="color:#d4541a">unsplash.com</a>, '\
+        'abre la foto, clic derecho → Copiar dirección de imagen</small></div>'
         '<div class="form-field"><label>&nbsp;</label>'
         '<button type="submit" class="btn-save" style="padding:.6rem 1.25rem;font-size:.9rem">Agregar producto</button></div>'
         '</div></form></div>')

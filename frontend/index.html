@@ -161,6 +161,9 @@
     .qty-box span{width:44px;text-align:center;font-weight:600;font-size:1rem}
     .btn-add-detail{flex:1;padding:.85rem;border-radius:var(--r);background:var(--ink);color:var(--paper);font-weight:700;font-size:1rem;transition:background .15s}
     .btn-add-detail:hover{background:var(--accent)}
+    .btn-buy-now{flex:1;padding:.85rem;border-radius:var(--r);background:var(--accent);color:#fff;font-weight:700;font-size:1rem;transition:background .15s;border:none;cursor:pointer}
+    .btn-buy-now:hover{background:#bf4a16}
+    .detail-action-row{display:flex;gap:.75rem;flex-wrap:wrap}
     .detail-divider{border:none;border-top:1.5px solid var(--border);margin:.5rem 0}
     .detail-meta{display:flex;flex-direction:column;gap:.4rem}
     .detail-meta-row{display:flex;gap:.5rem;font-size:.85rem}
@@ -550,6 +553,7 @@ const state = {
   currentProduct: null,
   reviews: {},
   detailQty: 1,
+  buyNowItem: null,
 };
 
 // ═══════════════════ UTILS ═══════════════════
@@ -601,7 +605,10 @@ function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 document.querySelectorAll('[data-close]').forEach(btn =>
-  btn.addEventListener('click', () => closeModal(btn.dataset.close)));
+  btn.addEventListener('click', () => {
+    closeModal(btn.dataset.close);
+    if (btn.dataset.close === 'checkout-modal') state.buyNowItem = null;
+  }));
 document.querySelectorAll('.modal-overlay').forEach(ov =>
   ov.addEventListener('click', e => { if(e.target===ov) closeModal(ov.id); }));
 
@@ -921,7 +928,10 @@ function showHistory() {
 
 function hideHistory() {
   document.getElementById('history-page').classList.remove('open');
-  showShop();
+  document.getElementById('shop-page').classList.remove('hidden');
+  document.getElementById('detail-page').classList.remove('active');
+  document.getElementById('cat-bar').style.display = '';
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 async function renderHistoryPage() {
@@ -1043,9 +1053,11 @@ function renderDetailPage(p) {
           <span id="detail-qty-val">1</span>
           <button id="detail-qty-inc">+</button>
         </div>
+        </div>
+        <div class="detail-action-row">
         <button class="btn-add-detail" id="btn-add-detail-main">🛒 Agregar al carrito</button>
-      </div>`:''}
-      <hr class="detail-divider"/>
+        <button class="btn-buy-now" id="btn-buy-now-main">⚡ Comprar ahora</button>
+        </div>`:''}\n      <hr class="detail-divider"/>
       <div class="detail-meta">
         <div class="detail-meta-row"><span class="detail-meta-label">Categoría</span><span>${p.categoria}</span></div>
         <div class="detail-meta-row"><span class="detail-meta-label">Disponibilidad</span><span>${oos?'Agotado':'En stock'}</span></div>
@@ -1067,6 +1079,7 @@ function renderDetailPage(p) {
       if (state.detailQty < p.existencias) { state.detailQty++; document.getElementById('detail-qty-val').textContent = state.detailQty; }
     });
     document.getElementById('btn-add-detail-main').addEventListener('click', () => addToCart(p.id, state.detailQty));
+    document.getElementById('btn-buy-now-main').addEventListener('click', () => buyNow(p.id, p.nombre, p.precio, p.imagen_url, state.detailQty));
   }
 }
 
@@ -1316,6 +1329,27 @@ function renderCart() {
     btn.addEventListener('click', () => removeCartItem(parseInt(btn.dataset.item))));
 }
 
+// ═══════════════════ COMPRAR AHORA ═══════════════════
+async function buyNow(productId, nombre, precio, imagen_url, cantidad) {
+  if (!state.user) {
+    toast('Inicia sesión para comprar', 'error');
+    openModal('login-modal');
+    return;
+  }
+  // Populate checkout modal directly with this product
+  const itemsEl = document.getElementById('checkout-items');
+  const totalEl = document.getElementById('checkout-total-amt');
+  const total   = precio * cantidad;
+  itemsEl.innerHTML = `<div class="checkout-item-row">
+    <span>${nombre} × ${cantidad}</span>
+    <span>${fmt(total)}</span>
+  </div>`;
+  totalEl.textContent = fmt(total);
+  // Store buy-now context so handleCheckout knows to use direct purchase
+  state.buyNowItem = { productId, cantidad, total };
+  openModal('checkout-modal');
+}
+
 async function addToCart(productId, cantidad) {
   if (!state.user) {
     // Carrito temporal para invitados
@@ -1412,9 +1446,29 @@ async function handleCheckout() {
   const btn = document.getElementById('btn-pay-submit');
   btn.disabled = true;
   btn.textContent = 'Procesando…';
-  const { ok, data } = await api('POST', '/checkout/', { metodo_pago: state.payMethod });
+  let ok, data;
+  if (state.buyNowItem) {
+    // Comprar ahora: agrega temporalmente al carrito y hace checkout
+    const addRes = await api('POST', '/cart/add', {
+      product_id: state.buyNowItem.productId,
+      cantidad:   state.buyNowItem.cantidad
+    });
+    if (!addRes.ok) {
+      btn.disabled = false;
+      btn.textContent = '💳 Confirmar pedido';
+      document.getElementById('checkout-error').textContent = addRes.data.error || 'Error al procesar';
+      return;
+    }
+    const res = await api('POST', '/checkout/', { metodo_pago: state.payMethod });
+    ok   = res.ok;
+    data = res.data;
+    state.buyNowItem = null;
+  } else {
+    const res = await api('POST', '/checkout/', { metodo_pago: state.payMethod });
+    ok   = res.ok;
+    data = res.data;
+  }
   btn.disabled = false;
-  // Restore button text based on method
   if (state.payMethod === 'efectivo')           btn.textContent = '🎫 Generar ticket';
   else if (state.payMethod === 'transferencia') btn.textContent = '📋 Ver datos de pago';
   else                                          btn.textContent = '💳 Confirmar pedido';
