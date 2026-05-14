@@ -35,14 +35,14 @@
     .suggestion-cat{font-size:.74rem;color:var(--muted);background:var(--cream);padding:.2rem .55rem;border-radius:999px;white-space:nowrap}
     /* HISTORY PAGE */
     #history-page{display:none}
-    #history-page.open{display:block}
     .history-header{display:flex;align-items:center;gap:1rem;margin-bottom:2rem}
     .history-back{background:none;border:1.5px solid var(--border);padding:.5rem 1rem;border-radius:999px;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:.4rem;color:var(--ink);transition:all .15s}
     .history-back:hover{background:var(--cream);border-color:var(--accent)}
-    .history-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;margin-bottom:2rem}
-    .history-stat{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:1.1rem 1.25rem}
-    .history-stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;margin-bottom:.2rem}
-    .history-stat-lbl{font-size:.78rem;color:var(--muted)}
+    .history-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem}
+    .history-stat{background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:1.2rem 1.4rem;min-width:0;overflow:hidden}
+    .history-stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.1rem,3vw,1.5rem);margin-bottom:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .history-stat-lbl{font-size:.78rem;color:var(--muted);line-height:1.4}
+    .history-stat-icon{font-size:1.3rem;margin-bottom:.4rem}
     .history-empty{text-align:center;padding:4rem 1rem;color:var(--muted)}
     .history-empty-icon{font-size:3rem;margin-bottom:1rem}
     .order-timeline{position:relative;padding-left:1.5rem}
@@ -127,8 +127,7 @@
 
     /* DETAIL PAGE */
     #detail-page{display:none;padding:2rem 0 5rem}
-    #detail-page.active{display:block}
-    #shop-page.hidden{display:none}
+    #history-page{display:none}
     .breadcrumb{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--muted);margin-bottom:1.5rem}
     .breadcrumb span{cursor:pointer;transition:color .15s}
     .breadcrumb span:hover{color:var(--accent)}
@@ -581,9 +580,9 @@ function toast(msg, type='') {
 
 // ═══════════════════ PAGES ═══════════════════
 function showShop() {
-  document.getElementById('shop-page').classList.remove('hidden');
-  document.getElementById('detail-page').classList.remove('active');
-  document.getElementById('history-page').classList.remove('open');
+  document.getElementById('shop-page').style.display   = '';
+  document.getElementById('detail-page').style.display = 'none';
+  document.getElementById('history-page').style.display = 'none';
   document.getElementById('cat-bar').style.display = '';
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -591,8 +590,9 @@ function showShop() {
 function showDetail(product) {
   state.currentProduct = product;
   state.detailQty = 1;
-  document.getElementById('shop-page').classList.add('hidden');
-  document.getElementById('detail-page').classList.add('active');
+  document.getElementById('shop-page').style.display   = 'none';
+  document.getElementById('detail-page').style.display = '';
+  document.getElementById('history-page').style.display = 'none';
   document.getElementById('cat-bar').style.display = 'none';
   window.scrollTo({top:0, behavior:'instant'});
   renderDetailPage(product);
@@ -920,16 +920,16 @@ searchInp.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
 
 // ═══════════════════ HISTORY PAGE ═══════════════════
 function showHistory() {
-  document.getElementById('shop-page').style.display   = 'none';
-  document.getElementById('detail-page').style.display = 'none';
-  document.getElementById('history-page').classList.add('open');
+  document.getElementById('shop-page').style.display    = 'none';
+  document.getElementById('detail-page').style.display  = 'none';
+  document.getElementById('history-page').style.display = '';
   renderHistoryPage();
 }
 
 function hideHistory() {
-  document.getElementById('history-page').classList.remove('open');
-  document.getElementById('shop-page').classList.remove('hidden');
-  document.getElementById('detail-page').classList.remove('active');
+  document.getElementById('history-page').style.display = 'none';
+  document.getElementById('shop-page').style.display    = '';
+  document.getElementById('detail-page').style.display  = 'none';
   document.getElementById('cat-bar').style.display = '';
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -958,21 +958,30 @@ async function renderHistoryPage() {
   const totalGastado = orders.reduce((s, o) => s + o.total, 0);
   const totalItems   = orders.reduce((s, o) => s + (o.items || []).reduce((a, i) => a + i.cantidad, 0), 0);
   const metodos      = [...new Set(orders.map(o => o.metodo_pago))].join(', ');
+  const fmtCompact = n => {
+    if (n >= 1000000) return '$' + (n/1000000).toFixed(1) + 'M';
+    if (n >= 1000)    return '$' + (n/1000).toFixed(1) + 'k';
+    return fmt(n);
+  };
   statsEl.innerHTML = `
     <div class="history-stat">
+      <div class="history-stat-icon">🛍️</div>
       <div class="history-stat-val" style="color:var(--accent)">${orders.length}</div>
       <div class="history-stat-lbl">Pedidos realizados</div>
     </div>
     <div class="history-stat">
-      <div class="history-stat-val" style="color:var(--success)">${fmt(totalGastado)}</div>
+      <div class="history-stat-icon">💰</div>
+      <div class="history-stat-val" style="color:#2d9a6a" title="${fmt(totalGastado)}">${fmtCompact(totalGastado)}</div>
       <div class="history-stat-lbl">Total gastado</div>
     </div>
     <div class="history-stat">
+      <div class="history-stat-icon">📦</div>
       <div class="history-stat-val">${totalItems}</div>
       <div class="history-stat-lbl">Productos comprados</div>
     </div>
     <div class="history-stat">
-      <div class="history-stat-val" style="font-size:1rem;padding-top:.3rem">${metodos}</div>
+      <div class="history-stat-icon">💳</div>
+      <div class="history-stat-val" style="font-size:.95rem;text-transform:capitalize">${metodos}</div>
       <div class="history-stat-lbl">Método(s) de pago</div>
     </div>`;
   // Timeline
