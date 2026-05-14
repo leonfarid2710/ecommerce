@@ -580,7 +580,7 @@ function toast(msg, type='') {
 
 // ═══════════════════ PAGES ═══════════════════
 function showShop() {
-  document.getElementById('shop-page').style.display   = '';
+  document.getElementById('shop-page').style.display   = 'block';
   document.getElementById('detail-page').style.display = 'none';
   document.getElementById('history-page').style.display = 'none';
   document.getElementById('cat-bar').style.display = '';
@@ -591,7 +591,7 @@ function showDetail(product) {
   state.currentProduct = product;
   state.detailQty = 1;
   document.getElementById('shop-page').style.display   = 'none';
-  document.getElementById('detail-page').style.display = '';
+  document.getElementById('detail-page').style.display = 'block';
   document.getElementById('history-page').style.display = 'none';
   document.getElementById('cat-bar').style.display = 'none';
   window.scrollTo({top:0, behavior:'instant'});
@@ -922,13 +922,13 @@ searchInp.addEventListener('blur', () => setTimeout(closeSuggestions, 150));
 function showHistory() {
   document.getElementById('shop-page').style.display    = 'none';
   document.getElementById('detail-page').style.display  = 'none';
-  document.getElementById('history-page').style.display = '';
+  document.getElementById('history-page').style.display = 'block';
   renderHistoryPage();
 }
 
 function hideHistory() {
   document.getElementById('history-page').style.display = 'none';
-  document.getElementById('shop-page').style.display    = '';
+  document.getElementById('shop-page').style.display    = 'block';
   document.getElementById('detail-page').style.display  = 'none';
   document.getElementById('cat-bar').style.display = '';
   window.scrollTo({top:0, behavior:'smooth'});
