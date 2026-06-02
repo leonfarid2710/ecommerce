@@ -7,6 +7,10 @@ Produccion:      gunicorn wsgi:app
 import os
 import re
 import hashlib
+import smtplib
+import threading
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from functools import wraps
 from flask import Flask, request, jsonify, session, send_from_directory, redirect
 
@@ -25,6 +29,109 @@ if os.environ.get('RENDER'):
     app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin1234')
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  CONFIGURACION DE EMAIL (Gmail + App Password)
+# ─────────────────────────────────────────────────────────────────────────────
+MAIL_SENDER   = os.environ.get('MAIL_SENDER',   '')   # tu correo Gmail
+MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')   # App Password de Gmail
+MAIL_ADMIN    = os.environ.get('MAIL_ADMIN',    MAIL_SENDER)
+MAIL_ENABLED  = bool(MAIL_SENDER and MAIL_PASSWORD)
+STOCK_ALERT_THRESHOLD = int(os.environ.get('STOCK_ALERT_THRESHOLD', '5'))
+
+def send_email(to, subject, html_body):
+    """Envía un correo en un hilo separado para no bloquear la respuesta."""
+    if not MAIL_ENABLED:
+        return
+    def _send():
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From']    = f'Star Up E-Commerce <{MAIL_SENDER}>'
+            msg['To']      = to
+            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as srv:
+                srv.login(MAIL_SENDER, MAIL_PASSWORD)
+                srv.sendmail(MAIL_SENDER, to, msg.as_string())
+        except Exception as e:
+            print(f'[EMAIL ERROR] {e}')
+    threading.Thread(target=_send, daemon=True).start()
+
+def email_confirmacion_compra(cliente_nombre, cliente_email, venta_id, total, items, metodo_pago):
+    items_html = ''.join(
+        f'<tr><td style="padding:8px 12px;border-bottom:1px solid #f0ebe4">{it["nombre"]}</td>'
+        f'<td style="padding:8px 12px;border-bottom:1px solid #f0ebe4;text-align:center">{it["cantidad"]}</td>'
+        f'<td style="padding:8px 12px;border-bottom:1px solid #f0ebe4;text-align:right">${it["precio_unitario"]*it["cantidad"]:,.2f}</td></tr>'
+        for it in items
+    )
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#faf8f4;padding:32px;border-radius:16px">
+      <div style="text-align:center;margin-bottom:28px">
+        <span style="font-size:2.5rem">⭐</span>
+        <h1 style="color:#1a1917;font-size:1.6rem;margin:8px 0">¡Gracias por tu compra, {cliente_nombre.split()[0]}!</h1>
+        <p style="color:#7a7167;margin:0">Tu pedido <strong style="color:#d4541a">#{venta_id}</strong> ha sido confirmado.</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;margin-bottom:20px">
+        <thead>
+          <tr style="background:#d4541a">
+            <th style="padding:10px 12px;color:#fff;text-align:left">Producto</th>
+            <th style="padding:10px 12px;color:#fff;text-align:center">Cant.</th>
+            <th style="padding:10px 12px;color:#fff;text-align:right">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>{items_html}</tbody>
+        <tfoot>
+          <tr style="background:#fff8f4">
+            <td colspan="2" style="padding:10px 12px;font-weight:700">Total</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:700;color:#d4541a;font-size:1.1rem">${total:,.2f}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p style="color:#7a7167;font-size:.9rem;text-align:center">Método de pago: <strong>{metodo_pago}</strong></p>
+      <p style="color:#7a7167;font-size:.85rem;text-align:center;margin-top:24px">
+        ¿Dudas? Contáctanos — <strong>Star Up E-Commerce</strong>
+      </p>
+    </div>
+    """
+    send_email(cliente_email, f'✅ Confirmación de pedido #{venta_id} — Star Up', html)
+
+def email_pedido_admin(venta_id, cliente_nombre, cliente_email, total, items, metodo_pago):
+    items_html = ''.join(
+        f'<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">{it["nombre"]}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center">{it["cantidad"]}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${it["precio_unitario"]*it["cantidad"]:,.2f}</td></tr>'
+        for it in items
+    )
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px">
+      <h2 style="color:#d4541a">🛒 Nuevo pedido #{venta_id}</h2>
+      <p><strong>Cliente:</strong> {cliente_nombre} ({cliente_email})</p>
+      <p><strong>Método de pago:</strong> {metodo_pago}</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <thead><tr style="background:#1a1917;color:#fff">
+          <th style="padding:8px 10px;text-align:left">Producto</th>
+          <th style="padding:8px 10px;text-align:center">Cant.</th>
+          <th style="padding:8px 10px;text-align:right">Subtotal</th>
+        </tr></thead>
+        <tbody>{items_html}</tbody>
+        <tfoot><tr style="background:#fff3ee">
+          <td colspan="2" style="padding:8px 10px;font-weight:700">Total</td>
+          <td style="padding:8px 10px;text-align:right;font-weight:700;color:#d4541a">${total:,.2f}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    """
+    send_email(MAIL_ADMIN, f'🛒 Nuevo pedido #{venta_id} — ${total:,.2f} MXN', html)
+
+def email_stock_bajo(producto_nombre, existencias):
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:24px;background:#fff8f4;border-radius:12px">
+      <h2 style="color:#d4541a">⚠️ Alerta de stock bajo</h2>
+      <p>El producto <strong>{producto_nombre}</strong> tiene solo <strong style="color:#d4541a">{existencias} unidades</strong> disponibles.</p>
+      <p style="color:#7a7167;font-size:.9rem">Accede al panel de administración para actualizar el inventario.</p>
+    </div>
+    """
+    send_email(MAIL_ADMIN, f'⚠️ Stock bajo: {producto_nombre} ({existencias} unid.)', html)
 
 DOMINIOS_VALIDOS = {
     'gmail.com','hotmail.com','outlook.com','yahoo.com','icloud.com',
@@ -435,9 +542,28 @@ def checkout():
                (i['cantidad'], i['producto_id']))
     mutate(db, 'DELETE FROM items_carrito WHERE carrito_id=?', (cid,))
     db.commit()
-    # Obtener nombre del cliente para el ticket
+    # Obtener nombre del cliente para el ticket y notificaciones
     cliente = fetchone(db, 'SELECT nombre,email FROM clientes WHERE id=?', (uid,))
+    # Verificar stock bajo post-compra para alertas
+    stock_alerts = fetchall(db,
+        'SELECT nombre,existencias FROM productos '
+        'WHERE activo=1 AND existencias>0 AND existencias<=?',
+        (STOCK_ALERT_THRESHOLD,))
     db.close()
+
+    # Notificaciones por correo (no bloquean la respuesta)
+    if cliente:
+        items_email = [{'nombre': i['nombre'], 'cantidad': i['cantidad'],
+                        'precio_unitario': i['precio']} for i in items]
+        email_confirmacion_compra(
+            cliente['nombre'], cliente['email'], vid,
+            round(total, 2), items_email, mp)
+        email_pedido_admin(
+            vid, cliente['nombre'], cliente['email'],
+            round(total, 2), items_email, mp)
+    for p in stock_alerts:
+        email_stock_bajo(p['nombre'], p['existencias'])
+
     return jsonify(
         message='Compra realizada con exito!',
         venta_id=vid,
@@ -581,6 +707,7 @@ def admin_logout():
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
+    import json
     db = get_db()
     tu = fetchone(db, 'SELECT COUNT(*) AS n FROM clientes')['n']
     tp = fetchone(db, 'SELECT COUNT(*) AS n FROM productos WHERE activo=1')['n']
@@ -588,29 +715,108 @@ def admin_dashboard():
     ti = fetchone(db, 'SELECT COALESCE(SUM(total),0) AS n FROM ventas WHERE estado="pagado"')['n']
     oo = fetchone(db, 'SELECT COUNT(*) AS n FROM productos WHERE existencias=0 AND activo=1')['n']
     lo = fetchone(db, 'SELECT COUNT(*) AS n FROM productos WHERE existencias>0 AND existencias<=5 AND activo=1')['n']
+    ventas_dia = fetchall(db,
+        "SELECT DATE(fecha) AS dia, COUNT(*) AS num_ventas, COALESCE(SUM(total),0) AS ingresos "
+        "FROM ventas WHERE fecha >= DATE('now','-29 days') "
+        "GROUP BY DATE(fecha) ORDER BY dia ASC")
+    top_productos = fetchall(db,
+        "SELECT p.nombre, SUM(dv.cantidad) AS total_vendido "
+        "FROM detalle_venta dv JOIN productos p ON dv.producto_id=p.id "
+        "GROUP BY dv.producto_id ORDER BY total_vendido DESC LIMIT 8")
+    metodos = fetchall(db,
+        "SELECT metodo_pago, COUNT(*) AS n FROM ventas GROUP BY metodo_pago")
     db.close()
+
+    dias_labels = json.dumps([r['dia']          for r in ventas_dia])
+    dias_ventas = json.dumps([r['num_ventas']   for r in ventas_dia])
+    dias_ing    = json.dumps([round(r['ingresos'],2) for r in ventas_dia])
+    prod_labels = json.dumps([r['nombre'][:24]  for r in top_productos])
+    prod_vals   = json.dumps([r['total_vendido'] for r in top_productos])
+    met_labels  = json.dumps([r['metodo_pago']  for r in metodos])
+    met_vals    = json.dumps([r['n']            for r in metodos])
+
     stats = [
-        ('👥', tu,            'Usuarios',         '#6fcf97'),
-        ('📦', tp,            'Productos activos', '#faf8f4'),
-        ('🛒', tv,            'Ventas',            '#6fcf97'),
-        ('💰', f'${ti:,.0f}', 'Ingresos MXN',     '#6fcf97'),
-        ('⚡', lo,            'Stock bajo',        '#f0c14b'),
-        ('❌', oo,            'Agotados',          '#e74c3c'),
+        ('\U0001f465', tu,            'Usuarios',          '#6fcf97'),
+        ('\U0001f4e6', tp,            'Productos activos', '#faf8f4'),
+        ('\U0001f6d2', tv,            'Ventas totales',    '#6fcf97'),
+        ('\U0001f4b0', f'${ti:,.0f}', 'Ingresos MXN',     '#6fcf97'),
+        ('\u26a1',     lo,            'Stock bajo',        '#f0c14b'),
+        ('\u274c',     oo,            'Agotados',          '#e74c3c'),
     ]
     cards = ''.join(
         f'<div class="stat"><div class="stat-icon">{i}</div>'
         f'<div class="stat-val" style="color:{c}">{v}</div>'
         f'<div class="stat-lbl">{l}</div></div>'
         for i, v, l, c in stats)
-    links = (
-        '<div style="display:flex;gap:.75rem;flex-wrap:wrap">'
-        '<a href="/admin/productos"   style="padding:.55rem 1.1rem;background:#d4541a;color:#fff;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">📦 Productos</a>'
-        '<a href="/admin/usuarios"    style="padding:.55rem 1.1rem;background:#2a2825;color:#faf8f4;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">👥 Usuarios</a>'
-        '<a href="/admin/proveedores" style="padding:.55rem 1.1rem;background:#2a2825;color:#faf8f4;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">🏭 Proveedores</a>'
-        '<a href="/admin/ventas"      style="padding:.55rem 1.1rem;background:#2a2825;color:#faf8f4;border-radius:9px;text-decoration:none;font-size:.88rem;font-weight:600">🛒 Ventas</a>'
-        '</div>')
-    body = (f'<h1>Dashboard</h1><p class="sub">Resumen general de la tienda</p>'
-            f'<div class="stat-grid">{cards}</div>{links}')
+
+    mail_badge = (
+        '<div style="display:inline-flex;align-items:center;gap:.5rem;background:#1e3a2f;'
+        'border:1px solid #2d9a6a;padding:.4rem 1rem;border-radius:8px;font-size:.82rem;'
+        'color:#6fcf97;margin-bottom:1.5rem">\u2705 Notificaciones por correo activas</div>'
+        if MAIL_ENABLED else
+        '<div style="display:inline-flex;align-items:center;gap:.5rem;background:#2a2420;'
+        'border:1px solid #7a4030;padding:.4rem 1rem;border-radius:8px;font-size:.82rem;'
+        'color:#e08060;margin-bottom:1.5rem">'
+        '\u26a0\ufe0f Correo no configurado \u2014 agrega MAIL_SENDER y MAIL_PASSWORD</div>'
+    )
+
+    charts = (
+        '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>'
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem">'
+
+        '<div style="background:#232120;border:1px solid #3a3632;border-radius:14px;'
+        'padding:1.25rem;grid-column:1/-1">'
+        '<h3 style="margin:0 0 1rem;font-size:1rem;color:#faf8f4">'
+        '\U0001f4c8 Ventas e ingresos &mdash; \u00faltimos 30 d\u00edas</h3>'
+        '<canvas id="chart-ventas" height="90"></canvas></div>'
+
+        '<div style="background:#232120;border:1px solid #3a3632;border-radius:14px;padding:1.25rem">'
+        '<h3 style="margin:0 0 1rem;font-size:1rem;color:#faf8f4">'
+        '\U0001f3c6 Productos m\u00e1s vendidos</h3>'
+        '<canvas id="chart-productos" height="220"></canvas></div>'
+
+        '<div style="background:#232120;border:1px solid #3a3632;border-radius:14px;padding:1.25rem">'
+        '<h3 style="margin:0 0 1rem;font-size:1rem;color:#faf8f4">'
+        '\U0001f4b3 Ventas por m\u00e9todo de pago</h3>'
+        '<canvas id="chart-metodos" height="220"></canvas></div>'
+
+        '</div>'
+        f'<script>'
+        f'const DL={dias_labels},DV={dias_ventas},DI={dias_ing};'
+        f'const PL={prod_labels},PV={prod_vals};'
+        f'const ML={met_labels},MV={met_vals};'
+        "Chart.defaults.color='#9a9088';"
+        "Chart.defaults.font.family='system-ui,sans-serif';"
+        "new Chart(document.getElementById('chart-ventas'),{data:{labels:DL,datasets:["
+        "{type:'bar',label:'Ventas',data:DV,backgroundColor:'rgba(212,84,26,.75)',"
+        "borderRadius:5,yAxisID:'y'},"
+        "{type:'line',label:'Ingresos ($)',data:DI,borderColor:'#6fcf97',"
+        "backgroundColor:'rgba(111,207,151,.12)',tension:.4,pointRadius:3,fill:true,yAxisID:'y1'}"
+        "]},options:{responsive:true,interaction:{mode:'index',intersect:false},"
+        "scales:{x:{grid:{color:'#2e2b28'}},y:{position:'left',grid:{color:'#2e2b28'}},"
+        "y1:{position:'right',grid:{drawOnChartArea:false}}}}});"
+        "new Chart(document.getElementById('chart-productos'),{type:'bar',"
+        "data:{labels:PL,datasets:[{label:'Unidades vendidas',data:PV,"
+        "backgroundColor:'rgba(212,84,26,.8)',borderRadius:5}]},"
+        "options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},"
+        "scales:{x:{grid:{color:'#2e2b28'}},y:{grid:{color:'#2e2b28'}}}}});"
+        "new Chart(document.getElementById('chart-metodos'),{type:'doughnut',"
+        "data:{labels:ML,datasets:[{data:MV,"
+        "backgroundColor:['#d4541a','#6fcf97','#f0c14b','#5b9bd5'],"
+        "borderColor:'#232120',borderWidth:3}]},"
+        "options:{responsive:true,plugins:{legend:{position:'bottom'}}}});"
+        '</script>'
+    )
+
+    body = (
+        '<h1>Dashboard</h1>'
+        '<p class="sub">Resumen general de la tienda</p>'
+        + mail_badge
+        + f'<div class="stat-grid">{cards}</div>'
+        + charts
+    )
+    return _page('Dashboard', body, 'dashboard')
+
     return _page('Dashboard', body, 'dashboard')
 
 # ─────────────────────────────────────────────────────────────────────────────
