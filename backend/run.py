@@ -7,10 +7,10 @@ Produccion:      gunicorn wsgi:app
 import os
 import re
 import hashlib
-import smtplib
+import json as _json
 import threading
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import urllib.request
+import urllib.error
 from functools import wraps
 from flask import Flask, request, jsonify, session, send_from_directory, redirect
 
@@ -33,29 +33,71 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin1234')
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONFIGURACION DE EMAIL (Gmail + App Password)
 # ─────────────────────────────────────────────────────────────────────────────
-MAIL_SENDER   = os.environ.get('MAIL_SENDER',   '')   # tu correo Gmail
-MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')   # App Password de Gmail
+MAIL_SENDER   = os.environ.get('MAIL_SENDER',   '')   # correo verificado en SendGrid
 MAIL_ADMIN    = os.environ.get('MAIL_ADMIN',    MAIL_SENDER)
-MAIL_ENABLED  = bool(MAIL_SENDER and MAIL_PASSWORD)
+SENDGRID_KEY  = os.environ.get('SENDGRID_API_KEY', '')
+MAIL_ENABLED  = bool(MAIL_SENDER and SENDGRID_KEY)
 STOCK_ALERT_THRESHOLD = int(os.environ.get('STOCK_ALERT_THRESHOLD', '5'))
 
 def send_email(to, subject, html_body):
-    """Envía un correo en un hilo separado para no bloquear la respuesta."""
+    """Envía un correo via SendGrid API (HTTPS) en un hilo separado."""
     if not MAIL_ENABLED:
+        print('[EMAIL] Desactivado: MAIL_SENDER o SENDGRID_API_KEY no configurados.')
         return
     def _send():
         try:
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From']    = f'Star Up E-Commerce <{MAIL_SENDER}>'
-            msg['To']      = to
-            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as srv:
-                srv.login(MAIL_SENDER, MAIL_PASSWORD)
-                srv.sendmail(MAIL_SENDER, to, msg.as_string())
+            print(f'[EMAIL] Enviando a {to} | Asunto: {subject}')
+            payload = _json.dumps({
+                'personalizations': [{'to': [{'email': to}]}],
+                'from': {'email': MAIL_SENDER, 'name': 'Star Up E-Commerce'},
+                'subject': subject,
+                'content': [{'type': 'text/html', 'value': html_body}]
+            }).encode('utf-8')
+            req = urllib.request.Request(
+                'https://api.sendgrid.com/v3/mail/send',
+                data=payload,
+                headers={
+                    'Authorization': f'Bearer {SENDGRID_KEY}',
+                    'Content-Type': 'application/json'
+                },
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                print(f'[EMAIL] Enviado correctamente a {to} | Status: {resp.status}')
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='ignore')
+            print(f'[EMAIL ERROR] HTTP {e.code}: {body}')
         except Exception as e:
-            print(f'[EMAIL ERROR] {e}')
+            print(f'[EMAIL ERROR] {type(e).__name__}: {e}')
     threading.Thread(target=_send, daemon=True).start()
+
+@app.route('/admin/test-email')
+@admin_required
+def test_email():
+    """Ruta de diagnóstico para probar el envío de correo."""
+    if not MAIL_ENABLED:
+        return (
+            '<p style="font-family:monospace;color:#e74c3c">'
+            'ERROR: MAIL_SENDER o SENDGRID_API_KEY no estan configurados.</p>'
+            f'<p style="font-family:monospace">MAIL_SENDER={repr(MAIL_SENDER)}</p>'
+            f'<p style="font-family:monospace">SENDGRID_API_KEY={"[configurado]" if SENDGRID_KEY else "[VACIO]"}</p>'
+        ), 500
+    dest = request.args.get('to', MAIL_ADMIN)
+    send_email(
+        dest,
+        'Prueba Star Up — correo de diagnóstico',
+        '<div style="font-family:Arial;padding:24px">'
+        '<h2 style="color:#d4541a">Correo de prueba</h2>'
+        '<p>Si ves este mensaje, las notificaciones por correo funcionan correctamente.</p>'
+        f'<p style="color:#888;font-size:.85rem">Enviado desde: {MAIL_SENDER}</p>'
+        '</div>'
+    )
+    return (
+        f'<p style="font-family:monospace;color:#2ecc71">Correo de prueba enviado a <b>{dest}</b>.</p>'
+        f'<p style="font-family:monospace;color:#aaa">Revisa los Logs en Render para confirmar. '
+        f'MAIL_SENDER={MAIL_SENDER}</p>'
+        f'<p><a href="/admin">Volver al dashboard</a></p>'
+    )
 
 def email_confirmacion_compra(cliente_nombre, cliente_email, venta_id, total, items, metodo_pago):
     items_html = ''.join(
@@ -752,12 +794,13 @@ def admin_dashboard():
     mail_badge = (
         '<div style="display:inline-flex;align-items:center;gap:.5rem;background:#1e3a2f;'
         'border:1px solid #2d9a6a;padding:.4rem 1rem;border-radius:8px;font-size:.82rem;'
-        'color:#6fcf97;margin-bottom:1.5rem">\u2705 Notificaciones por correo activas</div>'
+        'color:#6fcf97;margin-bottom:1.5rem">\u2705 Notificaciones activas (SendGrid)'
+        ' &nbsp;<a href="/admin/test-email" style="color:#6fcf97;font-size:.78rem">Enviar prueba</a></div>'
         if MAIL_ENABLED else
         '<div style="display:inline-flex;align-items:center;gap:.5rem;background:#2a2420;'
         'border:1px solid #7a4030;padding:.4rem 1rem;border-radius:8px;font-size:.82rem;'
         'color:#e08060;margin-bottom:1.5rem">'
-        '\u26a0\ufe0f Correo no configurado \u2014 agrega MAIL_SENDER y MAIL_PASSWORD</div>'
+        '\u26a0\ufe0f Correo no configurado \u2014 agrega MAIL_SENDER y SENDGRID_API_KEY en Render</div>'
     )
 
     charts = (
