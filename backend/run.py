@@ -71,34 +71,6 @@ def send_email(to, subject, html_body):
             print(f'[EMAIL ERROR] {type(e).__name__}: {e}')
     threading.Thread(target=_send, daemon=True).start()
 
-@app.route('/admin/test-email')
-@admin_required
-def test_email():
-    """Ruta de diagnóstico para probar el envío de correo."""
-    if not MAIL_ENABLED:
-        return (
-            '<p style="font-family:monospace;color:#e74c3c">'
-            'ERROR: MAIL_SENDER o SENDGRID_API_KEY no estan configurados.</p>'
-            f'<p style="font-family:monospace">MAIL_SENDER={repr(MAIL_SENDER)}</p>'
-            f'<p style="font-family:monospace">SENDGRID_API_KEY={"[configurado]" if SENDGRID_KEY else "[VACIO]"}</p>'
-        ), 500
-    dest = request.args.get('to', MAIL_ADMIN)
-    send_email(
-        dest,
-        'Prueba Star Up — correo de diagnóstico',
-        '<div style="font-family:Arial;padding:24px">'
-        '<h2 style="color:#d4541a">Correo de prueba</h2>'
-        '<p>Si ves este mensaje, las notificaciones por correo funcionan correctamente.</p>'
-        f'<p style="color:#888;font-size:.85rem">Enviado desde: {MAIL_SENDER}</p>'
-        '</div>'
-    )
-    return (
-        f'<p style="font-family:monospace;color:#2ecc71">Correo de prueba enviado a <b>{dest}</b>.</p>'
-        f'<p style="font-family:monospace;color:#aaa">Revisa los Logs en Render para confirmar. '
-        f'MAIL_SENDER={MAIL_SENDER}</p>'
-        f'<p><a href="/admin">Volver al dashboard</a></p>'
-    )
-
 def email_confirmacion_compra(cliente_nombre, cliente_email, venta_id, total, items, metodo_pago):
     items_html = ''.join(
         f'<tr><td style="padding:8px 12px;border-bottom:1px solid #f0ebe4">{it["nombre"]}</td>'
@@ -645,6 +617,35 @@ def admin_required(f):
             return redirect('/admin/login')
         return f(*args, **kwargs)
     return decorated
+
+
+@app.route('/admin/test-email')
+@admin_required
+def test_email():
+    """Ruta de diagnóstico para probar el envío de correo."""
+    if not MAIL_ENABLED:
+        return (
+            '<p style="font-family:monospace;color:#e74c3c">'
+            'ERROR: MAIL_SENDER o SENDGRID_API_KEY no estan configurados.</p>'
+            f'<p style="font-family:monospace">MAIL_SENDER={repr(MAIL_SENDER)}</p>'
+            f'<p style="font-family:monospace">SENDGRID_API_KEY={"[configurado]" if SENDGRID_KEY else "[VACIO]"}</p>'
+        ), 500
+    dest = request.args.get('to', MAIL_ADMIN)
+    send_email(
+        dest,
+        'Prueba Star Up — correo de diagnóstico',
+        '<div style="font-family:Arial;padding:24px">'
+        '<h2 style="color:#d4541a">Correo de prueba</h2>'
+        '<p>Si ves este mensaje, las notificaciones por correo funcionan correctamente.</p>'
+        f'<p style="color:#888;font-size:.85rem">Enviado desde: {MAIL_SENDER}</p>'
+        '</div>'
+    )
+    return (
+        f'<p style="font-family:monospace;color:#2ecc71">Correo de prueba enviado a <b>{dest}</b>.</p>'
+        f'<p style="font-family:monospace;color:#aaa">Revisa los Logs en Render para confirmar. '
+        f'MAIL_SENDER={MAIL_SENDER}</p>'
+        f'<p><a href="/admin">Volver al dashboard</a></p>'
+    )
 
 def _page(title, body, active=''):
     nav_items = [
