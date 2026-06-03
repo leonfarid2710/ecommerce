@@ -806,23 +806,23 @@ def admin_dashboard():
 
     charts = (
         '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>'
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.5rem">'
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-top:1rem">'
 
         '<div style="background:#232120;border:1px solid #3a3632;border-radius:14px;'
         'padding:1.25rem;grid-column:1/-1">'
         '<h3 style="margin:0 0 1rem;font-size:1rem;color:#faf8f4">'
         '\U0001f4c8 Ventas e ingresos &mdash; \u00faltimos 30 d\u00edas</h3>'
-        '<canvas id="chart-ventas" height="90"></canvas></div>'
+        '<canvas id="chart-ventas" style="max-height:220px"></canvas></div>'
 
         '<div style="background:#232120;border:1px solid #3a3632;border-radius:14px;padding:1.25rem">'
         '<h3 style="margin:0 0 1rem;font-size:1rem;color:#faf8f4">'
         '\U0001f3c6 Productos m\u00e1s vendidos</h3>'
-        '<canvas id="chart-productos" height="220"></canvas></div>'
+        '<canvas id="chart-productos" style="max-height:200px"></canvas></div>'
 
         '<div style="background:#232120;border:1px solid #3a3632;border-radius:14px;padding:1.25rem">'
         '<h3 style="margin:0 0 1rem;font-size:1rem;color:#faf8f4">'
         '\U0001f4b3 Ventas por m\u00e9todo de pago</h3>'
-        '<canvas id="chart-metodos" height="220"></canvas></div>'
+        '<canvas id="chart-metodos" style="max-height:200px"></canvas></div>'
 
         '</div>'
         f'<script>'
